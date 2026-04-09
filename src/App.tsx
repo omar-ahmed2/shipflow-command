@@ -1,26 +1,94 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
-import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import Index from "./pages/Index.tsx";
-import NotFound from "./pages/NotFound.tsx";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { ThemeProvider } from "@/context/ThemeContext";
+import LoginPage from "./pages/LoginPage";
+import AdminLayout from "./layouts/AdminLayout";
+import CourierLayout from "./layouts/CourierLayout";
+import DashboardPage from "./pages/admin/DashboardPage";
+import ShipmentsPage from "./pages/admin/ShipmentsPage";
+import CreateShipmentPage from "./pages/admin/CreateShipmentPage";
+import ShipmentDetailsPage from "./pages/admin/ShipmentDetailsPage";
+import CouriersPage from "./pages/admin/CouriersPage";
+import UsersPage from "./pages/admin/UsersPage";
+import PaymentsPage from "./pages/admin/PaymentsPage";
+import ReportsPage from "./pages/admin/ReportsPage";
+import SettingsPage from "./pages/admin/SettingsPage";
+import CourierHomePage from "./pages/courier/CourierHomePage";
+import CourierShipmentsPage from "./pages/courier/CourierShipmentsPage";
+import CourierShipmentDetailPage from "./pages/courier/CourierShipmentDetailPage";
+import CourierCODPage from "./pages/courier/CourierCODPage";
+import CourierProfilePage from "./pages/courier/CourierProfilePage";
+import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+const ProtectedRoutes = () => {
+  const { user, isAuthenticated } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+
+  if (user?.role === "admin") {
+    return (
+      <Routes>
+        <Route element={<AdminLayout />}>
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/shipments" element={<ShipmentsPage />} />
+          <Route path="/shipments/create" element={<CreateShipmentPage />} />
+          <Route path="/shipments/:id" element={<ShipmentDetailsPage />} />
+          <Route path="/couriers" element={<CouriersPage />} />
+          <Route path="/users" element={<UsersPage />} />
+          <Route path="/payments" element={<PaymentsPage />} />
+          <Route path="/reports" element={<ReportsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    );
+  }
+
+  return (
+    <Routes>
+      <Route element={<CourierLayout />}>
+        <Route path="/courier" element={<CourierHomePage />} />
+        <Route path="/courier/shipments" element={<CourierShipmentsPage />} />
+        <Route path="/courier/shipments/:id" element={<CourierShipmentDetailPage />} />
+        <Route path="/courier/cod" element={<CourierCODPage />} />
+        <Route path="/courier/profile" element={<CourierProfilePage />} />
+        <Route path="/" element={<Navigate to="/courier" replace />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/courier" replace />} />
+    </Routes>
+  );
+};
+
+const AppRoutes = () => {
+  const { isAuthenticated, user } = useAuth();
+
+  return (
+    <Routes>
+      <Route path="/login" element={
+        isAuthenticated ? <Navigate to={user?.role === 'admin' ? '/dashboard' : '/courier'} replace /> : <LoginPage />
+      } />
+      <Route path="/*" element={<ProtectedRoutes />} />
+    </Routes>
+  );
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <TooltipProvider>
+          <Sonner />
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </TooltipProvider>
+      </AuthProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 
