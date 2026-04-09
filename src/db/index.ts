@@ -38,11 +38,11 @@ class LocalDB {
     return newItem;
   }
 
-  update<T extends { id: string }>(table: TableName, id: string, updates: Partial<T>): T | undefined {
-    const items = this.getTable<T>(table);
+  update(table: TableName, id: string, updates: Record<string, any>): any {
+    const items = this.getTable<any>(table);
     const index = items.findIndex((item: any) => item.id === id);
     if (index === -1) return undefined;
-    items[index] = { ...items[index], ...updates, updatedAt: now() } as T;
+    items[index] = { ...items[index], ...updates, updatedAt: now() };
     this.setTable(table, items);
     return items[index];
   }
