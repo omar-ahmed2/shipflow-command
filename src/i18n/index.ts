@@ -1,7 +1,7 @@
 import { ar } from './ar';
 import { en } from './en';
 
-export type Translations = typeof ar;
+export type Translations = typeof ar | typeof en;
 export type LangKey = keyof Translations;
 
 export const translations = { ar, en } as const;
