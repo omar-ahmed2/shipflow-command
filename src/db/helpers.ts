@@ -7,6 +7,15 @@ export const generateTrackingId = (): string => {
   return `TRK-${num}`;
 };
 
+export const generateVerificationCode = (): string => {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "SH-";
+  for (let i = 0; i < 4; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return code;
+};
+
 export const hashPassword = (password: string): string => {
   return btoa(password);
 };

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/db';
-import { generateId, generateTrackingId, now } from '@/db/helpers';
+import { generateId, generateTrackingId, generateVerificationCode, now } from '@/db/helpers';
 import type { Shipment, Courier, ShipmentEvent, Notification } from '@/db/schema';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { motion } from 'framer-motion';
+import { pageVariants } from '@/animations/variants';
 
 const GOVERNORATES = ['القاهرة', 'الجيزة', 'الإسكندرية', 'الشرقية', 'الدقهلية', 'البحيرة', 'المنوفية', 'الغربية', 'كفر الشيخ', 'القليوبية', 'بني سويف', 'الفيوم', 'المنيا', 'أسيوط', 'سوهاج', 'قنا', 'الأقصر', 'أسوان', 'البحر الأحمر', 'الوادي الجديد', 'مطروح', 'شمال سيناء', 'جنوب سيناء', 'بورسعيد', 'السويس', 'الإسماعيلية', 'دمياط'];
 
@@ -40,26 +42,26 @@ const CreateShipmentPage: React.FC = () => {
 
     const trackingId = generateTrackingId();
     const shipmentId = generateId('SHP');
-    const status = form.courierId ? 'assigned' : 'pending';
+    const verificationCode = generateVerificationCode();
+    const status = form.courierId && form.courierId !== 'none' ? 'assigned' : 'pending';
 
     const shipment: Shipment = {
-      id: shipmentId, trackingId,
+      id: shipmentId, trackingId, verificationCode,
       customerName: form.customerName, customerPhone: form.customerPhone,
       address: form.address, city: form.city, governorate: form.governorate,
       price: Number(form.price), paymentType: form.paymentType, codCollected: false,
-      status, courierId: form.courierId || null, createdBy: user?.id || '',
+      status, courierId: (form.courierId && form.courierId !== 'none') ? form.courierId : null,
+      createdBy: user?.id || '',
       notes: form.notes, createdAt: now(), updatedAt: now(),
     };
 
     db.create<Shipment>('shipments', shipment, 'SHP');
 
-    // Event
     db.create<ShipmentEvent>('shipmentEvents', {
       id: generateId('EVT'), shipmentId, status, actor: user?.name || '', actorRole: 'admin', timestamp: now(),
     } as ShipmentEvent, 'EVT');
 
-    // Notification for courier
-    if (form.courierId) {
+    if (form.courierId && form.courierId !== 'none') {
       const courier = db.getById<Courier>('couriers', form.courierId);
       if (courier) {
         db.create<Notification>('notifications', {
@@ -76,11 +78,10 @@ const CreateShipmentPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto animate-fade-in">
+    <motion.div variants={pageVariants} initial="initial" animate="animate" className="max-w-4xl mx-auto">
       <h2 className="text-xl font-bold mb-6">{t.createShipment}</h2>
       <form onSubmit={handleSubmit}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Customer Info */}
           <div className="admin-card p-6 space-y-4">
             <h3 className="font-semibold text-sm mb-2">{t.customerInfo}</h3>
             <div>
@@ -110,7 +111,6 @@ const CreateShipmentPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Shipment Info */}
           <div className="admin-card p-6 space-y-4">
             <h3 className="font-semibold text-sm mb-2">{t.shipmentInfo}</h3>
             <div>
@@ -148,12 +148,14 @@ const CreateShipmentPage: React.FC = () => {
         </div>
 
         <div className="mt-6 flex justify-end">
-          <Button type="submit" disabled={loading} className="rounded-xl px-8 h-11">
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : t.createButton}
-          </Button>
+          <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}>
+            <Button type="submit" disabled={loading} className="rounded-xl px-8 h-11">
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : t.createButton}
+            </Button>
+          </motion.div>
         </div>
       </form>
-    </div>
+    </motion.div>
   );
 };
 

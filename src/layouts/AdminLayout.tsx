@@ -6,12 +6,14 @@ import { db } from '@/db';
 import type { Notification } from '@/db/schema';
 import {
   LayoutDashboard, Package, PlusCircle, Truck, Users, Wallet, BarChart3, Settings,
-  LogOut, Menu, X, Bell, Moon, Sun, Globe, ChevronLeft
+  LogOut, Menu, Bell, Moon, Sun, Globe, ChevronLeft
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { motion, AnimatePresence } from 'framer-motion';
+import { menuItemVariants, badgePulse } from '@/animations/variants';
 
 const AdminLayout: React.FC = () => {
   const { user, logout } = useAuth();
@@ -39,57 +41,76 @@ const AdminLayout: React.FC = () => {
   return (
     <div className="min-h-screen flex bg-background">
       {/* Sidebar */}
-      <aside className={`fixed inset-y-0 start-0 z-40 flex flex-col border-e bg-card transition-all duration-300 ${sidebarOpen ? 'w-60' : 'w-16'}`}>
+      <aside className={`fixed inset-y-0 start-0 z-40 flex flex-col transition-all duration-300 ${sidebarOpen ? 'w-60' : 'w-16'}`}
+        style={{
+          background: 'hsl(var(--sidebar-background))',
+          borderInlineEnd: '1px solid hsl(var(--sidebar-border))',
+        }}>
         {/* Logo */}
-        <div className="h-16 flex items-center gap-3 px-4 border-b">
-          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+        <div className="h-16 flex items-center gap-3 px-4 border-b border-sidebar-border">
+          <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center flex-shrink-0 relative">
             <Truck className="w-4 h-4 text-primary" />
+            <div className="absolute inset-0 rounded-lg bg-primary/10 blur-sm" />
           </div>
           {sidebarOpen && (
-            <div className="overflow-hidden">
-              <h1 className="font-bold text-sm">{t.systemName}</h1>
-              <p className="text-[10px] text-muted-foreground">{t.systemDesc}</p>
-            </div>
+            <motion.div className="overflow-hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              <h1 className="font-bold text-sm text-sidebar-foreground">{t.systemName}</h1>
+              <p className="text-[10px] text-sidebar-foreground/50">{t.systemDesc}</p>
+            </motion.div>
           )}
         </div>
 
         {/* Nav */}
         <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
-          {menuItems.map(item => {
+          {menuItems.map((item, i) => {
             const isActive = location.pathname === item.path ||
               (item.path === '/shipments' && location.pathname.startsWith('/shipments/') && item.path === '/shipments');
             return (
-              <button
+              <motion.button
                 key={item.path}
+                custom={i}
+                variants={menuItemVariants}
+                initial="initial"
+                animate="animate"
+                whileHover={{ x: 2 }}
+                whileTap={{ scale: 0.97 }}
                 onClick={() => navigate(item.path)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all relative
                   ${isActive
-                    ? 'bg-primary/10 text-primary font-medium'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+                    ? 'bg-primary/15 text-primary font-medium'
+                    : 'text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground'}`}
               >
                 <item.icon className="w-4 h-4 flex-shrink-0" />
                 {sidebarOpen && <span>{item.label}</span>}
-              </button>
+                {isActive && (
+                  <motion.div
+                    layoutId="sidebarIndicator"
+                    className="absolute start-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full bg-primary"
+                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                  />
+                )}
+              </motion.button>
             );
           })}
         </nav>
 
         {/* User */}
-        <div className="border-t p-3">
+        <div className="border-t border-sidebar-border p-3">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary flex-shrink-0">
+            <div className="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center text-xs font-bold text-primary flex-shrink-0">
               {user?.name?.charAt(0)}
             </div>
             {sidebarOpen && (
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{user?.name}</p>
-                <p className="text-[10px] text-muted-foreground">{t.admin}</p>
+                <p className="text-sm font-medium truncate text-sidebar-foreground">{user?.name}</p>
+                <p className="text-[10px] text-sidebar-foreground/50">{t.admin}</p>
               </div>
             )}
             {sidebarOpen && (
-              <button onClick={handleLogout} className="text-muted-foreground hover:text-destructive">
+              <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={handleLogout}
+                className="text-sidebar-foreground/40 hover:text-destructive transition-colors">
                 <LogOut className="w-4 h-4" />
-              </button>
+              </motion.button>
             )}
           </div>
         </div>
@@ -100,9 +121,10 @@ const AdminLayout: React.FC = () => {
         {/* Topbar */}
         <header className="h-16 border-b bg-card/80 backdrop-blur-sm flex items-center justify-between px-6 sticky top-0 z-30">
           <div className="flex items-center gap-3">
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-muted-foreground hover:text-foreground">
+            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+              onClick={() => setSidebarOpen(!sidebarOpen)} className="text-muted-foreground hover:text-foreground">
               {sidebarOpen ? <ChevronLeft className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </button>
+            </motion.button>
           </div>
 
           <div className="flex items-center gap-2">
@@ -117,9 +139,10 @@ const AdminLayout: React.FC = () => {
                 <Button variant="ghost" size="icon" className="rounded-xl relative">
                   <Bell className="w-4 h-4" />
                   {notifications.length > 0 && (
-                    <span className="absolute -top-0.5 -end-0.5 w-4 h-4 bg-destructive text-destructive-foreground text-[10px] rounded-full flex items-center justify-center">
+                    <motion.span {...badgePulse}
+                      className="absolute -top-0.5 -end-0.5 w-4 h-4 bg-destructive text-destructive-foreground text-[10px] rounded-full flex items-center justify-center">
                       {notifications.length}
-                    </span>
+                    </motion.span>
                   )}
                 </Button>
               </DropdownMenuTrigger>

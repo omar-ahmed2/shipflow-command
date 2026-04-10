@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { motion } from 'framer-motion';
+import { badgePulse } from '@/animations/variants';
 
 const CourierLayout: React.FC = () => {
   const { user, logout } = useAuth();
@@ -31,7 +33,7 @@ const CourierLayout: React.FC = () => {
   const handleLogout = () => { logout(); navigate('/login'); };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background pb-16">
+    <div className="min-h-screen flex flex-col bg-background pb-20">
       {/* Topbar */}
       <header className="h-14 border-b bg-card/80 backdrop-blur-sm flex items-center justify-between px-4 sticky top-0 z-30">
         <div>
@@ -50,9 +52,10 @@ const CourierLayout: React.FC = () => {
               <Button variant="ghost" size="icon" className="rounded-xl h-9 w-9 relative">
                 <Bell className="w-4 h-4" />
                 {notifications.length > 0 && (
-                  <span className="absolute -top-0.5 -end-0.5 w-4 h-4 bg-destructive text-destructive-foreground text-[10px] rounded-full flex items-center justify-center">
+                  <motion.span {...badgePulse}
+                    className="absolute -top-0.5 -end-0.5 w-4 h-4 bg-destructive text-destructive-foreground text-[10px] rounded-full flex items-center justify-center">
                     {notifications.length}
-                  </span>
+                  </motion.span>
                 )}
               </Button>
             </DropdownMenuTrigger>
@@ -84,23 +87,40 @@ const CourierLayout: React.FC = () => {
         <Outlet />
       </main>
 
-      {/* Bottom Nav */}
-      <nav className="fixed bottom-0 inset-x-0 h-16 border-t bg-card/95 backdrop-blur-sm flex items-center justify-around z-40">
-        {tabs.map(tab => {
-          const isActive = location.pathname === tab.path;
-          return (
-            <button
-              key={tab.path}
-              onClick={() => navigate(tab.path)}
-              className={`flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-colors
-                ${isActive ? 'text-primary' : 'text-muted-foreground'}`}
-            >
-              <tab.icon className="w-5 h-5" />
-              <span className="text-[10px] font-medium">{tab.label}</span>
-            </button>
-          );
-        })}
-      </nav>
+      {/* Bottom Nav - Floating */}
+      <motion.nav
+        className="fixed bottom-0 inset-x-0 z-40 px-4 pb-2"
+        initial={{ y: 100 }}
+        animate={{ y: 0 }}
+        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+      >
+        <div className="rounded-2xl border bg-card/95 backdrop-blur-xl flex items-center justify-around shadow-lg"
+          style={{ boxShadow: '0 -8px 32px hsl(var(--background) / 0.8)' }}>
+          {tabs.map(tab => {
+            const isActive = location.pathname === tab.path;
+            return (
+              <motion.button
+                key={tab.path}
+                whileTap={{ scale: 0.85 }}
+                onClick={() => navigate(tab.path)}
+                className="flex flex-col items-center gap-1 px-4 py-3 relative flex-1"
+              >
+                {isActive && (
+                  <motion.div
+                    layoutId="courierNavIndicator"
+                    className="absolute top-0 left-1/4 right-1/4 h-[2px] rounded-full bg-primary"
+                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                  />
+                )}
+                <tab.icon className="w-5 h-5" style={{ color: isActive ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))' }} />
+                <span className="text-[10px] font-medium" style={{ color: isActive ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))' }}>
+                  {tab.label}
+                </span>
+              </motion.button>
+            );
+          })}
+        </div>
+      </motion.nav>
     </div>
   );
 };

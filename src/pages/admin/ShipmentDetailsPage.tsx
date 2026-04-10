@@ -4,15 +4,18 @@ import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/db';
 import { generateId, now } from '@/db/helpers';
-import type { Shipment, ShipmentEvent, Courier, Notification, ShipmentStatus } from '@/db/schema';
+import type { Shipment, ShipmentEvent, Courier, ShipmentStatus } from '@/db/schema';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { ArrowRight, Phone, MapPin, Calendar, Package } from 'lucide-react';
+import { Phone, MapPin, Package, Copy, QrCode, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDateTime, formatCurrency } from '@/utils/formatters';
+import { motion } from 'framer-motion';
+import { pageVariants } from '@/animations/variants';
+import QRCode from 'react-qr-code';
 
 const STATUSES: ShipmentStatus[] = ['pending', 'assigned', 'out_for_delivery', 'delivered', 'returned', 'cancelled'];
 
@@ -53,8 +56,13 @@ const ShipmentDetailsPage: React.FC = () => {
     setRefresh(r => r + 1);
   };
 
+  const copyCode = () => {
+    navigator.clipboard.writeText(shipment.verificationCode || '');
+    toast.success(t.copied);
+  };
+
   return (
-    <div className="max-w-5xl mx-auto animate-fade-in">
+    <motion.div variants={pageVariants} initial="initial" animate="animate" className="max-w-5xl mx-auto">
       <div className="flex items-center gap-2 mb-6">
         <Button variant="ghost" size="sm" onClick={() => navigate('/shipments')}>← {t.shipments}</Button>
         <span className="text-muted-foreground">/</span>
@@ -85,6 +93,37 @@ const ShipmentDetailsPage: React.FC = () => {
             </div>
           </div>
 
+          {/* Verification Code Card */}
+          {shipment.verificationCode && (
+            <div className="admin-card p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <QrCode className="w-4 h-4 text-primary" />
+                <h3 className="font-semibold text-sm">{t.verificationCode}</h3>
+              </div>
+              <div className="flex items-start gap-6">
+                <div className="flex-1">
+                  <p className="text-xs text-muted-foreground mb-2">{t.verificationCodeDesc}</p>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-2xl font-bold font-mono-nums tracking-widest text-primary">
+                      {shipment.verificationCode}
+                    </span>
+                    <button onClick={copyCode} className="p-2 rounded-lg hover:bg-muted text-muted-foreground">
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{t.verificationCodeHint}</p>
+                </div>
+                <div className="p-3 bg-white rounded-xl">
+                  <QRCode value={shipment.verificationCode} size={80} level="M" />
+                </div>
+              </div>
+              <button className="w-full mt-4 py-2.5 rounded-xl border text-sm font-medium flex items-center justify-center gap-2 hover:bg-muted transition-colors">
+                <Printer className="w-4 h-4" />
+                {t.printLabel}
+              </button>
+            </div>
+          )}
+
           {/* Update Status */}
           <div className="admin-card p-6">
             <h3 className="font-semibold text-sm mb-4">{t.updateStatus}</h3>
@@ -102,7 +141,9 @@ const ShipmentDetailsPage: React.FC = () => {
                 <Label>{t.addNote}</Label>
                 <Textarea value={note} onChange={e => setNote(e.target.value)} className="rounded-xl mt-1" />
               </div>
-              <Button onClick={handleUpdateStatus} disabled={!newStatus} className="rounded-xl">{t.saveUpdate}</Button>
+              <motion.div whileTap={{ scale: 0.97 }}>
+                <Button onClick={handleUpdateStatus} disabled={!newStatus} className="rounded-xl">{t.saveUpdate}</Button>
+              </motion.div>
             </div>
           </div>
         </div>
@@ -116,7 +157,10 @@ const ShipmentDetailsPage: React.FC = () => {
             ) : (
               <div className="space-y-4">
                 {events.map((event, i) => (
-                  <div key={event.id} className="flex gap-3">
+                  <motion.div key={event.id} className="flex gap-3"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.05 }}>
                     <div className="flex flex-col items-center">
                       <div className={`w-3 h-3 rounded-full ${i === 0 ? 'bg-primary' : 'bg-muted-foreground/30'}`} />
                       {i < events.length - 1 && <div className="w-px flex-1 bg-border mt-1" />}
@@ -130,14 +174,14 @@ const ShipmentDetailsPage: React.FC = () => {
                         <span>{formatDateTime(event.timestamp, lang)}</span>
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
             )}
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
