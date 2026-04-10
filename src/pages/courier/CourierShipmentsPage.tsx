@@ -9,9 +9,10 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Phone, MapPin, Search } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Phone, MapPin, Search, CheckCircle } from 'lucide-react';
 import { formatCurrency, isToday, isThisWeek } from '@/utils/formatters';
+import { motion } from 'framer-motion';
+import { cardVariants, pageVariants } from '@/animations/variants';
 
 const CourierShipmentsPage: React.FC = () => {
   const { courierProfile } = useAuth();
@@ -36,7 +37,7 @@ const CourierShipmentsPage: React.FC = () => {
   });
 
   return (
-    <div className="space-y-4 animate-slide-up">
+    <motion.div variants={pageVariants} initial="initial" animate="animate" className="space-y-4">
       <h2 className="text-lg font-bold">{t.myShipments}</h2>
       <Tabs value={period} onValueChange={setPeriod}>
         <TabsList className="rounded-xl w-full">
@@ -65,27 +66,43 @@ const CourierShipmentsPage: React.FC = () => {
         <EmptyState title={t.noShipments} />
       ) : (
         <div className="space-y-3">
-          {filtered.map(s => (
-            <div key={s.id} className="courier-card p-4 space-y-2 cursor-pointer" onClick={() => navigate(`/courier/shipments/${s.id}`)}>
-              <div className="flex items-center justify-between">
-                <span className="font-mono-nums text-xs">{s.trackingId}</span>
+          {filtered.map((s, i) => (
+            <motion.div key={s.id} custom={i} variants={cardVariants} initial="initial" animate="animate"
+              whileTap={{ scale: 0.98 }}
+              className="courier-card overflow-hidden cursor-pointer"
+              onClick={() => navigate(`/courier/shipments/${s.id}`)}>
+              <div className="flex items-center justify-between px-4 py-2.5 bg-muted/30 border-b">
+                <span className="font-mono-nums text-xs text-muted-foreground">{s.trackingId}</span>
                 <StatusBadge status={s.status} />
               </div>
-              <p className="font-medium">{s.customerName}</p>
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <MapPin className="w-3 h-3" /> {s.city}
+              <div className="p-4">
+                <p className="font-medium mb-2">{s.customerName}</p>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
+                  <MapPin className="w-3 h-3" /> {s.city}
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-mono-nums font-bold text-sm">{formatCurrency(s.price)} {t.egp}</span>
+                  <div className="flex gap-2">
+                    <motion.a whileTap={{ scale: 0.9 }} href={`tel:${s.customerPhone}`}
+                      className="w-8 h-8 rounded-lg border flex items-center justify-center"
+                      onClick={e => e.stopPropagation()}>
+                      <Phone className="w-3.5 h-3.5" />
+                    </motion.a>
+                    {['assigned', 'out_for_delivery'].includes(s.status) && (
+                      <motion.button whileTap={{ scale: 0.9 }}
+                        className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground"
+                        onClick={e => { e.stopPropagation(); navigate(`/courier/shipments/${s.id}`); }}>
+                        <CheckCircle className="w-3.5 h-3.5" />
+                      </motion.button>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="font-mono-nums font-bold text-sm">{formatCurrency(s.price)} {t.egp}</span>
-                <Button size="sm" variant="outline" className="rounded-xl h-7" onClick={e => { e.stopPropagation(); window.open(`tel:${s.customerPhone}`); }}>
-                  <Phone className="w-3 h-3" />
-                </Button>
-              </div>
-            </div>
+            </motion.div>
           ))}
         </div>
       )}
-    </div>
+    </motion.div>
   );
 };
 

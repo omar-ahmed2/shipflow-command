@@ -11,6 +11,9 @@ import { Calendar, MapPin, Phone, Truck } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDate } from '@/utils/formatters';
 import { RadialBarChart, RadialBar, ResponsiveContainer } from 'recharts';
+import { motion } from 'framer-motion';
+import { pageVariants, cardVariants } from '@/animations/variants';
+import CountUp from 'react-countup';
 
 const CourierProfilePage: React.FC = () => {
   const { user, courierProfile } = useAuth();
@@ -28,7 +31,7 @@ const CourierProfilePage: React.FC = () => {
   const returned = shipments.filter(s => s.status === 'returned').length;
   const rate = shipments.length > 0 ? Math.round((delivered / shipments.length) * 100) : 0;
 
-  const chartData = [{ name: 'rate', value: rate, fill: 'hsl(160,84%,39%)' }];
+  const chartData = [{ name: 'rate', value: rate, fill: '#10B981' }];
 
   const changePassword = () => {
     if (!user) return;
@@ -41,12 +44,13 @@ const CourierProfilePage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4 animate-slide-up">
+    <motion.div variants={pageVariants} initial="initial" animate="animate" className="space-y-4">
       <h2 className="text-lg font-bold">{t.myProfile}</h2>
 
-      <div className="courier-card p-5">
+      <motion.div custom={0} variants={cardVariants} initial="initial" animate="animate" className="courier-card p-5">
         <div className="flex items-center gap-4 mb-4">
-          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-2xl font-bold text-primary">
+          <div className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold text-primary"
+            style={{ background: 'hsl(var(--primary) / 0.1)' }}>
             {courierProfile?.name?.charAt(0)}
           </div>
           <div>
@@ -59,10 +63,9 @@ const CourierProfilePage: React.FC = () => {
           <div className="flex items-center gap-2"><Truck className="w-4 h-4 text-muted-foreground" />{courierProfile?.vehicleType && t[courierProfile.vehicleType as keyof typeof t]}</div>
           <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-muted-foreground" />{t.joinDate}: {courierProfile?.joinDate && formatDate(courierProfile.joinDate, lang)}</div>
         </div>
-      </div>
+      </motion.div>
 
-      {/* Performance */}
-      <div className="courier-card p-5">
+      <motion.div custom={1} variants={cardVariants} initial="initial" animate="animate" className="courier-card p-5">
         <h3 className="font-semibold text-sm mb-4">{t.performance}</h3>
         <div className="flex items-center gap-6">
           <ResponsiveContainer width={120} height={120}>
@@ -71,22 +74,23 @@ const CourierProfilePage: React.FC = () => {
             </RadialBarChart>
           </ResponsiveContainer>
           <div className="space-y-2">
-            <div><span className="text-muted-foreground text-xs">{t.totalDelivered}</span><p className="font-bold font-mono-nums text-success">{delivered}</p></div>
-            <div><span className="text-muted-foreground text-xs">{t.totalReturned}</span><p className="font-bold font-mono-nums text-destructive">{returned}</p></div>
-            <div><span className="text-muted-foreground text-xs">{t.successRate}</span><p className="font-bold font-mono-nums">{rate}%</p></div>
+            <div><span className="text-muted-foreground text-xs">{t.totalDelivered}</span><p className="font-bold font-mono-nums" style={{ color: '#10B981' }}><CountUp end={delivered} duration={1} /></p></div>
+            <div><span className="text-muted-foreground text-xs">{t.totalReturned}</span><p className="font-bold font-mono-nums text-destructive"><CountUp end={returned} duration={1} /></p></div>
+            <div><span className="text-muted-foreground text-xs">{t.successRate}</span><p className="font-bold font-mono-nums"><CountUp end={rate} duration={1} />%</p></div>
           </div>
         </div>
-      </div>
+      </motion.div>
 
-      {/* Change Password */}
-      <div className="courier-card p-5 space-y-3">
+      <motion.div custom={2} variants={cardVariants} initial="initial" animate="animate" className="courier-card p-5 space-y-3">
         <h3 className="font-semibold text-sm">{t.changePassword}</h3>
         <div><Label>{t.currentPassword}</Label><Input type="password" value={curPwd} onChange={e => setCurPwd(e.target.value)} className="rounded-xl mt-1" /></div>
         <div><Label>{t.newPassword}</Label><Input type="password" value={newPwd} onChange={e => setNewPwd(e.target.value)} className="rounded-xl mt-1" /></div>
         <div><Label>{t.confirmPassword}</Label><Input type="password" value={confPwd} onChange={e => setConfPwd(e.target.value)} className="rounded-xl mt-1" /></div>
-        <Button onClick={changePassword} className="rounded-xl w-full">{t.save}</Button>
-      </div>
-    </div>
+        <motion.div whileTap={{ scale: 0.97 }}>
+          <Button onClick={changePassword} className="rounded-xl w-full">{t.save}</Button>
+        </motion.div>
+      </motion.div>
+    </motion.div>
   );
 };
 
