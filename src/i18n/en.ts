@@ -191,7 +191,6 @@ export const en = {
   statusUpdated: "Status updated",
   myCOD: "Collections",
   expectedAmount: "Expected Amount",
-  collectedAmount: "Collected",
   confirmCollection: "Confirm Collection",
   collectionConfirmed: "Collection confirmed",
   myProfile: "My Profile",
