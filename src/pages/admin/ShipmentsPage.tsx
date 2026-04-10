@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { formatDate, formatCurrency } from '@/utils/formatters';
+import { motion } from 'framer-motion';
+import { pageVariants } from '@/animations/variants';
 
 const STATUSES: ShipmentStatus[] = ['pending', 'assigned', 'out_for_delivery', 'delivered', 'returned', 'cancelled'];
 const PAGE_SIZE = 15;
@@ -74,7 +76,7 @@ const ShipmentsPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4 animate-fade-in">
+    <motion.div variants={pageVariants} initial="initial" animate="animate" className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">{t.shipments} ({filtered.length})</h2>
         <Button onClick={() => navigate('/shipments/create')} className="rounded-xl">
@@ -189,7 +191,7 @@ const ShipmentsPage: React.FC = () => {
       </div>
 
       <ConfirmDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)} title={t.confirmDelete} description={t.deleteWarning} onConfirm={handleDelete} />
-    </div>
+    </motion.div>
   );
 };
 
