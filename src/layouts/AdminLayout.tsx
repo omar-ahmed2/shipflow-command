@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -20,8 +20,26 @@ const AdminLayout: React.FC = () => {
   const { t, isDark, toggleTheme, lang, setLang } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth > 768);
   const [notifOpen, setNotifOpen] = useState(false);
+
+  useEffect(() => {
+    if (window.innerWidth <= 768) {
+      setSidebarOpen(false);
+    }
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth <= 768) {
+        setSidebarOpen(false);
+      } else {
+        setSidebarOpen(true);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const notifications = db.query<Notification>('notifications', n => n.targetRole === 'admin' && !n.read);
 
@@ -40,8 +58,16 @@ const AdminLayout: React.FC = () => {
 
   return (
     <div className="min-h-screen flex bg-background">
+      {/* Mobile Backdrop */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-background/80 backdrop-blur-sm z-30 md:hidden" 
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className={`fixed inset-y-0 start-0 z-40 flex flex-col transition-all duration-300 ${sidebarOpen ? 'w-60' : 'w-16'}`}
+      <aside className={`fixed inset-y-0 start-0 z-40 flex flex-col shadow-2xl md:shadow-none transition-all duration-300 overflow-hidden ${sidebarOpen ? 'w-64 md:w-60' : 'w-0 md:w-16'}`}
         style={{
           background: 'hsl(var(--sidebar-background))',
           borderInlineEnd: '1px solid hsl(var(--sidebar-border))',
@@ -117,7 +143,7 @@ const AdminLayout: React.FC = () => {
       </aside>
 
       {/* Main */}
-      <div className={`flex-1 flex flex-col transition-all duration-300 ${sidebarOpen ? 'ms-60' : 'ms-16'}`}>
+      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${sidebarOpen ? 'md:ms-60' : 'md:ms-16'}`}>
         {/* Topbar */}
         <header className="h-16 border-b bg-card/80 backdrop-blur-sm flex items-center justify-between px-6 sticky top-0 z-30">
           <div className="flex items-center gap-3">

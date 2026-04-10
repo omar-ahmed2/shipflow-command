@@ -1,6 +1,6 @@
 import { generateId, now } from './helpers';
 
-type TableName = 'users' | 'couriers' | 'shipments' | 'shipmentEvents' | 'notifications';
+type TableName = 'users' | 'couriers' | 'shipments' | 'shipmentEvents' | 'notifications' | 'settlements';
 
 class LocalDB {
   private getTable<T>(name: TableName): T[] {
@@ -69,7 +69,7 @@ class LocalDB {
   }
 
   clearAll(): void {
-    const tables: TableName[] = ['users', 'couriers', 'shipments', 'shipmentEvents', 'notifications'];
+    const tables: TableName[] = ['users', 'couriers', 'shipments', 'shipmentEvents', 'notifications', 'settlements'];
     tables.forEach(t => localStorage.removeItem(`shipflow_${t}`));
     localStorage.removeItem('shipflow_initialized');
   }

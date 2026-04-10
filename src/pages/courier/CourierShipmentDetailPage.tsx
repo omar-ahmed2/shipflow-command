@@ -91,7 +91,21 @@ const CourierShipmentDetailPage: React.FC = () => {
 
       <div className="courier-card overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 bg-muted/30 border-b">
-          <span className="font-mono-nums text-sm">{shipment.trackingId}</span>
+          <div className="flex flex-col">
+            <span className="font-mono-nums font-bold text-sm">{shipment.trackingId}</span>
+            {shipment.verificationCode && (
+              <span 
+                className="font-mono-nums text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1 cursor-pointer hover:text-primary transition-colors"
+                onClick={() => {
+                  navigator.clipboard.writeText(shipment.verificationCode || '');
+                  toast.success(t.copied || 'تم النسخ');
+                }}
+                title={t.copied || 'نسخ'}
+              >
+                <Shield className="w-3 h-3" /> {shipment.verificationCode}
+              </span>
+            )}
+          </div>
           <StatusBadge status={shipment.status} size="md" />
         </div>
         <div className="p-5 space-y-4">
@@ -162,7 +176,16 @@ const CourierShipmentDetailPage: React.FC = () => {
                 <div className="flex items-center gap-2 p-3 rounded-xl border"><RadioGroupItem value="returned" id="ret" /><Label htmlFor="ret">✗ {t.returned}</Label></div>
               </RadioGroup>
               <Textarea value={note} onChange={e => setNote(e.target.value)} placeholder={t.addNote} className="rounded-xl" />
-              <motion.button whileTap={{ scale: 0.97 }} onClick={() => handleUpdate()} disabled={!newStatus}
+              <motion.button whileTap={{ scale: 0.97 }} 
+                onClick={() => {
+                  if (newStatus === 'delivered' && shipment.verificationCode) {
+                    setUpdateOpen(false);
+                    setDeliveryConfirmOpen(true);
+                  } else {
+                    handleUpdate();
+                  }
+                }} 
+                disabled={!newStatus}
                 className="w-full py-3 rounded-2xl font-bold text-primary-foreground bg-primary disabled:opacity-50">
                 {t.confirmUpdate}
               </motion.button>

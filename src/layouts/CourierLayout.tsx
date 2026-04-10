@@ -35,21 +35,21 @@ const CourierLayout: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col bg-background pb-20">
       {/* Topbar */}
-      <header className="h-14 border-b bg-card/80 backdrop-blur-sm flex items-center justify-between px-4 sticky top-0 z-30">
-        <div>
-          <span className="text-sm font-medium">{t.hello} 👋</span>
-          <span className="text-sm font-bold ms-1">{user?.name}</span>
+      <header className="h-16 border-b bg-card/80 backdrop-blur-md flex items-center justify-between px-4 sticky top-0 z-30 shadow-sm">
+        <div className="flex flex-col">
+          <span className="text-xs font-medium text-muted-foreground">{t.hello} 👋</span>
+          <span className="text-sm font-bold truncate max-w-[140px] sm:max-w-xs">{user?.name}</span>
         </div>
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="rounded-xl h-9 w-9" onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')}>
+        <div className="flex items-center gap-0.5 sm:gap-1">
+          <Button variant="ghost" size="icon" className="rounded-xl h-8 w-8 sm:h-9 sm:w-9" onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')}>
             <Globe className="w-4 h-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="rounded-xl h-9 w-9" onClick={toggleTheme}>
+          <Button variant="ghost" size="icon" className="rounded-xl h-8 w-8 sm:h-9 sm:w-9" onClick={toggleTheme}>
             {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </Button>
           <DropdownMenu open={notifOpen} onOpenChange={setNotifOpen}>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-xl h-9 w-9 relative">
+              <Button variant="ghost" size="icon" className="rounded-xl h-8 w-8 sm:h-9 sm:w-9 relative">
                 <Bell className="w-4 h-4" />
                 {notifications.length > 0 && (
                   <motion.span {...badgePulse}
@@ -76,7 +76,7 @@ const CourierLayout: React.FC = () => {
               )}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="ghost" size="icon" className="rounded-xl h-9 w-9" onClick={handleLogout}>
+          <Button variant="ghost" size="icon" className="rounded-xl h-8 w-8 sm:h-9 sm:w-9" onClick={handleLogout}>
             <LogOut className="w-4 h-4" />
           </Button>
         </div>
@@ -89,12 +89,12 @@ const CourierLayout: React.FC = () => {
 
       {/* Bottom Nav - Floating */}
       <motion.nav
-        className="fixed bottom-0 inset-x-0 z-40 px-4 pb-2"
+        className="fixed bottom-0 inset-x-0 z-40 px-3 sm:px-4 pb-3 sm:pb-4"
         initial={{ y: 100 }}
         animate={{ y: 0 }}
         transition={{ type: "spring", damping: 25, stiffness: 300 }}
       >
-        <div className="rounded-2xl border bg-card/95 backdrop-blur-xl flex items-center justify-around shadow-lg"
+        <div className="rounded-2xl border bg-card/95 backdrop-blur-xl flex items-center justify-around shadow-xl"
           style={{ boxShadow: '0 -8px 32px hsl(var(--background) / 0.8)' }}>
           {tabs.map(tab => {
             const isActive = location.pathname === tab.path;

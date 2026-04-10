@@ -41,6 +41,7 @@ export interface Shipment {
   price: number;
   paymentType: "COD" | "paid";
   codCollected: boolean;
+  courierCollected?: boolean;
   status: ShipmentStatus;
   courierId: string | null;
   createdBy: string;
@@ -71,4 +72,13 @@ export interface Notification {
   read: boolean;
   link?: string;
   createdAt: string;
+}
+
+export interface Settlement {
+  id: string;
+  courierId: string;
+  amount: number;
+  shipmentCount: number;
+  date: string;
+  adminName: string;
 }

@@ -41,7 +41,7 @@ const CourierHomePage: React.FC = () => {
     <motion.div variants={pageVariants} initial="initial" animate="animate" className="space-y-4">
       <h2 className="text-lg font-bold">{t.yourDay} {user?.name} 📦</h2>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {kpis.map((kpi, i) => (
           <motion.div key={i} custom={i} variants={cardVariants} initial="initial" animate="animate"
             className="courier-card p-4 relative overflow-hidden">

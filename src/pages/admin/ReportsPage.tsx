@@ -6,9 +6,31 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { Download, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, ComposedChart, Line } from 'recharts';
 import { formatCurrency } from '@/utils/formatters';
 import { toast } from 'sonner';
+
+const ChartTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-xl border border-border/50 bg-background/95 backdrop-blur-md p-3 shadow-2xl text-xs font-medium z-50">
+      <p className="text-muted-foreground mb-2 pb-2 border-b border-border/50 uppercase tracking-wider text-[10px]">{label}</p>
+      <div className="space-y-2">
+        {payload.map((entry: any, i: number) => (
+          <div key={i} className="flex items-center justify-between gap-6">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full shadow-sm" style={{ background: entry.color || entry.fill || entry.payload?.fill }} />
+              <span className="text-muted-foreground">{entry.name}</span>
+            </div>
+            <span className="font-mono-nums font-semibold text-foreground tracking-tight">
+              {entry.value}{entry.dataKey === 'rate' ? '%' : ''}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 const ReportsPage: React.FC = () => {
   const { t } = useTheme();
@@ -87,29 +109,53 @@ const ReportsPage: React.FC = () => {
             </TabsList>
           </Tabs>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="admin-card p-6">
-              <h3 className="font-semibold text-sm mb-4">{t.deliveryVsReturn}</h3>
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={courierPerf}>
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip />
-                  <Bar dataKey="delivered" fill="hsl(160,84%,39%)" radius={[4, 4, 0, 0]} name={t.delivered} />
-                  <Bar dataKey="returned" fill="hsl(0,84%,60%)" radius={[4, 4, 0, 0]} name={t.returned} />
-                </BarChart>
-              </ResponsiveContainer>
+              <h3 className="font-semibold text-sm mb-6 flex items-center"><FileText className="w-4 h-4 me-2 text-primary" /> {t.deliveryVsReturn}</h3>
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={courierPerf} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorDelivered" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10B981" stopOpacity={0.8} />
+                        <stop offset="95%" stopColor="#10B981" stopOpacity={0.2} />
+                      </linearGradient>
+                      <linearGradient id="colorReturned" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#F87171" stopOpacity={0.8} />
+                        <stop offset="95%" stopColor="#F87171" stopOpacity={0.2} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.5} />
+                    <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" axisLine={false} tickLine={false} dy={10} />
+                    <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" axisLine={false} tickLine={false} dx={-10} />
+                    <Tooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }} />
+                    <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
+                    <Bar dataKey="delivered" fill="url(#colorDelivered)" radius={[4, 4, 0, 0]} name={t.delivered} maxBarSize={40} />
+                    <Bar dataKey="returned" fill="url(#colorReturned)" radius={[4, 4, 0, 0]} name={t.returned} maxBarSize={40} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
             <div className="admin-card p-6">
-              <h3 className="font-semibold text-sm mb-4">{t.courierComparison}</h3>
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={courierPerf} layout="vertical">
-                  <XAxis type="number" tick={{ fontSize: 11 }} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={80} />
-                  <Tooltip />
-                  <Bar dataKey="rate" fill="hsl(239,84%,67%)" radius={[0, 4, 4, 0]} name={t.successRate} />
-                </BarChart>
-              </ResponsiveContainer>
+              <h3 className="font-semibold text-sm mb-6 flex items-center"><FileText className="w-4 h-4 me-2 text-primary" /> {t.courierComparison}</h3>
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={courierPerf} layout="vertical" margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorRate" x1="1" y1="0" x2="0" y2="0">
+                        <stop offset="5%" stopColor="#4F8EF7" stopOpacity={0.8} />
+                        <stop offset="95%" stopColor="#4F8EF7" stopOpacity={0.2} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" opacity={0.5} />
+                    <XAxis type="number" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" axisLine={false} tickLine={false} domain={[0, 100]} />
+                    <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={80} stroke="hsl(var(--muted-foreground))" axisLine={false} tickLine={false} />
+                    <Tooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }} />
+                    <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
+                    <Bar dataKey="rate" fill="url(#colorRate)" radius={[0, 4, 4, 0]} name={t.successRate} maxBarSize={30} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
 

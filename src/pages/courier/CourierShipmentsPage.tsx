@@ -46,13 +46,13 @@ const CourierShipmentsPage: React.FC = () => {
           <TabsTrigger value="all" className="rounded-lg flex-1">{t.all}</TabsTrigger>
         </TabsList>
       </Tabs>
-      <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder={t.search} value={search} onChange={e => setSearch(e.target.value)} className="ps-9 rounded-xl" />
+          <Input placeholder={t.search} value={search} onChange={e => setSearch(e.target.value)} className="ps-9 rounded-xl w-full" />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-32 rounded-xl"><SelectValue placeholder={t.allStatuses} /></SelectTrigger>
+          <SelectTrigger className="w-full sm:w-32 rounded-xl"><SelectValue placeholder={t.allStatuses} /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{t.allStatuses}</SelectItem>
             <SelectItem value="assigned">{t.assigned}</SelectItem>
