@@ -16,8 +16,6 @@ import { formatDateTime, formatCurrency } from '@/utils/formatters';
 import { motion } from 'framer-motion';
 import { pageVariants } from '@/animations/variants';
 import QRCode from 'react-qr-code';
-import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
 
 const STATUSES: ShipmentStatus[] = ['pending', 'assigned', 'out_for_delivery', 'delivered', 'returned', 'cancelled'];
 
