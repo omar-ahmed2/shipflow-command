@@ -188,17 +188,6 @@ const LoginPage: React.FC = () => {
             </div>
           </div>
         </motion.div>
-
-        {/* Test credentials */}
-        <motion.div
-          className="mt-4 p-3 rounded-xl border bg-card/50 text-center"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-        >
-          <p className="text-xs text-muted-foreground font-medium mb-1">{t.testCredentials}</p>
-          <p className="text-xs font-mono-nums text-muted-foreground">{t.adminCredentials}</p>
-        </motion.div>
       </motion.div>
     </div>
   );
