@@ -44,6 +44,7 @@ export interface Shipment {
   status: ShipmentStatus;
   courierId: string | null;
   createdBy: string;
+  verificationCode: string;
   notes?: string;
   createdAt: string;
   updatedAt: string;
