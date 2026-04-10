@@ -78,19 +78,23 @@ const DashboardPage: React.FC = () => {
 
   const latest = [...shipments].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 10);
 
-  // Generate mock time-series data for the last 7 days based on actual shipments
-  const areaChartData = Array.from({ length: 7 }).map((_, i) => {
+  // Generate actual time-series data for the last 30 days based on true shipments
+  const areaChartData = Array.from({ length: 30 }).map((_, i) => {
     const d = new Date();
-    d.setDate(d.getDate() - (6 - i));
-    const dateStr = d.toLocaleDateString('en-US', { weekday: 'short' });
+    d.setDate(d.getDate() - (29 - i));
+    const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     
-    // Just finding shipments created on this weekday as a simple mock if we lack real history matching exactly
-    // In a real scenario, compare dates explicitly
-    const dayShipments = shipments.filter(s => new Date(s.createdAt).getDay() === d.getDay());
+    // Compare explicitly by date matching to avoid fake or random data
+    const dayShipments = shipments.filter(s => {
+      const sDate = new Date(s.createdAt);
+      return sDate.getDate() === d.getDate() && 
+             sDate.getMonth() === d.getMonth() && 
+             sDate.getFullYear() === d.getFullYear();
+    });
     
     return {
       date: dateStr,
-      created: dayShipments.length || Math.floor(Math.random() * 5) + 1, // Fallback to random if no data
+      created: dayShipments.length,
     };
   });
 
