@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/context/ThemeContext';
 import { db } from '@/db';
-import type { Shipment, Courier, ShipmentStatus } from '@/db/schema';
+import type { Shipment, Courier, ShipmentStatus, Seller } from '@/db/schema';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
@@ -26,6 +26,7 @@ const ShipmentsPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [courierFilter, setCourierFilter] = useState<string>('all');
+  const [sellerFilter, setSellerFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -33,6 +34,7 @@ const ShipmentsPage: React.FC = () => {
 
   const shipments = useMemo(() => db.getAll<Shipment>('shipments'), [refresh]);
   const couriers = useMemo(() => db.getAll<Courier>('couriers'), [refresh]);
+  const sellers = useMemo(() => db.getAll<Seller>('sellers'), [refresh]);
 
   const filtered = useMemo(() => {
     return shipments
@@ -41,10 +43,12 @@ const ShipmentsPage: React.FC = () => {
           !s.customerPhone.includes(search) && !s.customerName.toLowerCase().includes(search.toLowerCase())) return false;
         if (statusFilter !== 'all' && s.status !== statusFilter) return false;
         if (courierFilter !== 'all' && s.courierId !== courierFilter) return false;
+        if (sellerFilter === '__admin__' && s.sellerId) return false;
+        if (sellerFilter !== 'all' && sellerFilter !== '__admin__' && s.sellerId !== sellerFilter) return false;
         return true;
       })
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [shipments, search, statusFilter, courierFilter]);
+  }, [shipments, search, statusFilter, courierFilter, sellerFilter]);
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -53,6 +57,12 @@ const ShipmentsPage: React.FC = () => {
     if (!id) return '—';
     const c = couriers.find(c => c.id === id);
     return c?.name || '—';
+  };
+
+  const getSellerName = (id?: string) => {
+    if (!id) return 'الشركة (الأدمن)';
+    const s = sellers.find(x => x.id === id);
+    return s?.storeName || 'متجر غير معروف';
   };
 
   const handleDelete = () => {
@@ -104,8 +114,16 @@ const ShipmentsPage: React.FC = () => {
             {couriers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
           </SelectContent>
         </Select>
-        {(search || statusFilter !== 'all' || courierFilter !== 'all') && (
-          <Button variant="ghost" size="sm" onClick={() => { setSearch(''); setStatusFilter('all'); setCourierFilter('all'); }}>
+        <Select value={sellerFilter} onValueChange={v => { setSellerFilter(v); setPage(1); }}>
+          <SelectTrigger className="w-44 rounded-xl"><SelectValue placeholder="كل المصادر" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">كل المصادر</SelectItem>
+            <SelectItem value="__admin__">شحنات الشركة</SelectItem>
+            {sellers.map(s => <SelectItem key={s.id} value={s.id}>{s.storeName}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        {(search || statusFilter !== 'all' || courierFilter !== 'all' || sellerFilter !== 'all') && (
+          <Button variant="ghost" size="sm" onClick={() => { setSearch(''); setStatusFilter('all'); setCourierFilter('all'); setSellerFilter('all'); }}>
             <X className="w-3 h-3 me-1" /> {t.clearFilters}
           </Button>
         )}
@@ -139,6 +157,7 @@ const ShipmentsPage: React.FC = () => {
                 <tr className="border-b bg-muted/30">
                   <th className="p-3 w-10"><input type="checkbox" checked={selected.size === paged.length && paged.length > 0} onChange={toggleAll} className="rounded" /></th>
                   <th className="p-3 text-start font-medium">{t.tracking}</th>
+                  <th className="p-3 text-start font-medium">المصدر / المتجر</th>
                   <th className="p-3 text-start font-medium">{t.customer}</th>
                   <th className="p-3 text-start font-medium">{t.phone}</th>
                   <th className="p-3 text-start font-medium">{t.city}</th>
@@ -155,6 +174,7 @@ const ShipmentsPage: React.FC = () => {
                   <tr key={s.id} className="border-b hover:bg-muted/30 transition-colors">
                     <td className="p-3"><input type="checkbox" checked={selected.has(s.id)} onChange={() => toggleSelect(s.id)} className="rounded" /></td>
                     <td className="p-3 font-mono-nums text-xs">{s.trackingId}</td>
+                    <td className="p-3 text-xs font-semibold text-primary">{getSellerName(s.sellerId)}</td>
                     <td className="p-3">{s.customerName}</td>
                     <td className="p-3 font-mono-nums text-xs">{s.customerPhone}</td>
                     <td className="p-3">{s.city}</td>

@@ -4,7 +4,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/db';
 import { generateId, now } from '@/db/helpers';
-import type { Shipment, ShipmentEvent, Courier, ShipmentStatus } from '@/db/schema';
+import type { Shipment, ShipmentEvent, Courier, ShipmentStatus, Notification, Seller } from '@/db/schema';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -34,10 +34,23 @@ const ShipmentDetailsPage: React.FC = () => {
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
     [id, refresh]);
   const couriers = useMemo(() => db.getAll<Courier>('couriers'), []);
+  const sellers = useMemo(() => db.getAll<Seller>('sellers'), []);
 
   if (!shipment) return <div className="p-8 text-center text-muted-foreground">Not found</div>;
 
   const courierName = shipment.courierId ? couriers.find(c => c.id === shipment.courierId)?.name || '—' : '—';
+  const seller = shipment.sellerId ? sellers.find(s => s.id === shipment.sellerId) : null;
+  const senderName = seller?.storeName || 'الإدارة الرئيسية - شركة ShipFlow Logistics';
+  const senderPhone = seller?.phone || '+201000000000';
+
+  const STATUS_LABELS_AR: Record<string, string> = {
+    assigned: 'تم تعيين مندوب لها',
+    out_for_delivery: 'جاري توصيلها الآن',
+    delivered: 'تم تسليمها للعميل بنجاح ✓',
+    returned: 'تم إرجاعها',
+    cancelled: 'تم إلغاؤها',
+    pending: 'قيد الانتظار',
+  };
 
   const handleUpdateStatus = () => {
     if (!newStatus) return;
@@ -50,11 +63,62 @@ const ShipmentDetailsPage: React.FC = () => {
       note: note || undefined, actor: user?.name || '', actorRole: 'admin', timestamp: now(),
     } as ShipmentEvent, 'EVT');
 
+    // Notify seller if this shipment belongs to one
+    if (seller?.userId) {
+      db.create<Notification>('notifications', {
+        id: generateId('NOT'),
+        targetRole: 'seller',
+        targetUserId: seller.userId,
+        type: newStatus === 'delivered' ? 'success' : newStatus === 'returned' ? 'warning' : 'info',
+        title: `تحديث شحنة #${shipment.trackingId}`,
+        message: `شحنتك إلى ${shipment.customerName} — ${STATUS_LABELS_AR[newStatus] || newStatus}`,
+        read: false,
+        createdAt: now(),
+      } as Notification, 'NOT');
+    }
+
     toast.success(t.statusUpdated);
     setNewStatus('');
     setNote('');
     setRefresh(r => r + 1);
+
   };
+
+  const handleAssignCourier = (selectedCourierId: string) => {
+    db.update('shipments', shipment.id, { 
+      courierId: selectedCourierId, 
+      status: 'assigned', 
+      updatedAt: now() 
+    });
+
+    const c = couriers.find(x => x.id === selectedCourierId);
+
+    db.create<ShipmentEvent>('shipmentEvents', {
+      id: generateId('EVT'), 
+      shipmentId: shipment.id, 
+      status: 'assigned',
+      note: `تم تعيين المندوب: ${c?.name}`, 
+      actor: user?.name || '', 
+      actorRole: 'admin', 
+      timestamp: now(),
+    } as ShipmentEvent, 'EVT');
+
+    if (c?.userId) {
+      db.create<Notification>('notifications', {
+        targetRole: 'courier',
+        targetUserId: c.userId,
+        type: 'info',
+        title: 'شحنة جديدة',
+        message: `تم تعيين شحنة جديدة لك برقم ${shipment.trackingId}`,
+        read: false,
+        link: `/courier/shipments/${shipment.id}`
+      } as Partial<Notification> as any, 'NOT');
+    }
+
+    toast.success('تم تعيين المندوب بنجاح');
+    setRefresh(r => r + 1);
+  };
+
 
   const copyCode = () => {
     navigator.clipboard.writeText(shipment.verificationCode || '');
@@ -119,8 +183,8 @@ const ShipmentDetailsPage: React.FC = () => {
           <div className="border-[2px] border-black flex flex-col mt-2">
              <div className="bg-black text-white px-2 py-0.5 text-[10px] font-bold">الراسل (Sender)</div>
              <div className="p-2 leading-tight">
-               <p className="text-sm font-black">الإدارة الرئيسية - شركة ShipFlow Logistics</p>
-               <p className="text-xs mt-1 font-mono font-bold">TEL: +201000000000</p>
+               <p className="text-sm font-black">{senderName}</p>
+               <p className="text-xs mt-1 font-mono font-bold">TEL: {senderPhone}</p>
              </div>
           </div>
 
@@ -192,6 +256,7 @@ const ShipmentDetailsPage: React.FC = () => {
           <div className="admin-card p-6">
             <h3 className="font-semibold text-sm mb-4">{t.shipmentInfo}</h3>
             <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="col-span-2 border-b pb-2 mb-2"><span className="text-muted-foreground block mb-1">المصدر / المتجر</span><p className="font-bold text-primary">{senderName}</p></div>
               <div><span className="text-muted-foreground">{t.price}</span><p className="font-mono-nums font-bold">{formatCurrency(shipment.price)} {t.egp}</p></div>
               <div><span className="text-muted-foreground">{t.payment}</span><p>{shipment.paymentType === 'COD' ? t.cod : t.paid}</p></div>
               <div><span className="text-muted-foreground">{t.status}</span><div className="mt-1"><StatusBadge status={shipment.status} /></div></div>
@@ -233,6 +298,28 @@ const ShipmentDetailsPage: React.FC = () => {
               </button>
             </div>
           )}
+
+          {/* Assign Courier */}
+          <div className="admin-card p-6">
+            <h3 className="font-semibold text-sm mb-4">تعيين مندوب التوصيل</h3>
+            <div className="space-y-3">
+              <div>
+                <Label>اختر المندوب</Label>
+                <Select value={shipment.courierId || ''} onValueChange={handleAssignCourier}>
+                  <SelectTrigger className="rounded-xl mt-1">
+                    <SelectValue placeholder="تحديد مندوب..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {couriers.map(c => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name} ({c.zone})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
 
           {/* Update Status */}
           <div className="admin-card p-6">

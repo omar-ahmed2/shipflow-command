@@ -11,7 +11,7 @@ export interface User {
   name: string;
   email: string;
   passwordHash: string;
-  role: "admin" | "courier";
+  role: "admin" | "courier" | "seller";
   phone?: string;
   status: "active" | "inactive";
   createdAt: string;
@@ -30,6 +30,17 @@ export interface Courier {
   notes?: string;
 }
 
+export interface Seller {
+  id: string;
+  userId: string;
+  storeName: string;
+  phone: string;
+  address?: string;
+  joinDate: string;
+  status: "active" | "inactive";
+  shippingFee: number; // default shipping fee agreed with this seller
+}
+
 export interface Shipment {
   id: string;
   trackingId: string;
@@ -42,8 +53,11 @@ export interface Shipment {
   paymentType: "COD" | "paid";
   codCollected: boolean;
   courierCollected?: boolean;
+  shippingFee?: number; // fee deducted from seller
+  sellerSettled?: boolean; // true if the admin has paid the seller
   status: ShipmentStatus;
   courierId: string | null;
+  sellerId: string | null;
   createdBy: string;
   verificationCode: string;
   notes?: string;
@@ -58,13 +72,13 @@ export interface ShipmentEvent {
   status: ShipmentStatus;
   note?: string;
   actor: string;
-  actorRole: "admin" | "courier";
+  actorRole: "admin" | "courier" | "seller";
   timestamp: string;
 }
 
 export interface Notification {
   id: string;
-  targetRole: "admin" | "courier";
+  targetRole: "admin" | "courier" | "seller";
   targetUserId?: string;
   type: "info" | "success" | "warning" | "error";
   title: string;
@@ -76,7 +90,8 @@ export interface Notification {
 
 export interface Settlement {
   id: string;
-  courierId: string;
+  courierId?: string;
+  sellerId?: string;
   amount: number;
   shipmentCount: number;
   date: string;

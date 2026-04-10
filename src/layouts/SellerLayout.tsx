@@ -5,17 +5,17 @@ import { useTheme } from '@/context/ThemeContext';
 import { db } from '@/db';
 import type { Notification } from '@/db/schema';
 import {
-  LayoutDashboard, Package, PlusCircle, Truck, Users, Wallet, BarChart3, Settings,
+  LayoutDashboard, Package, PlusCircle, Wallet, Settings,
   LogOut, Menu, Bell, Moon, Sun, Globe, ChevronLeft, Store
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { menuItemVariants, badgePulse } from '@/animations/variants';
 
-const AdminLayout: React.FC = () => {
+const SellerLayout: React.FC = () => {
   const { user, logout } = useAuth();
   const { t, isDark, toggleTheme, lang, setLang } = useTheme();
   const navigate = useNavigate();
@@ -41,18 +41,13 @@ const AdminLayout: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const notifications = db.query<Notification>('notifications', n => n.targetRole === 'admin' && !n.read);
+  const notifications = db.query<Notification>('notifications', n => n.targetRole === 'seller' && n.targetUserId === user?.id && !n.read);
 
   const menuItems = [
-    { icon: LayoutDashboard, label: t.dashboard, path: '/dashboard' },
-    { icon: Package, label: t.shipments, path: '/shipments' },
-    { icon: PlusCircle, label: t.newShipment, path: '/shipments/create' },
-    { icon: Truck, label: t.couriers, path: '/couriers' },
-    { icon: Store, label: t.sellers || 'المتاجر', path: '/sellers' },
-    { icon: Users, label: t.users, path: '/users' },
-    { icon: Wallet, label: t.payments, path: '/payments' },
-    { icon: BarChart3, label: t.reports, path: '/reports' },
-    { icon: Settings, label: t.settings, path: '/settings' },
+    { icon: LayoutDashboard, label: t.dashboard || "لوحة القيادة", path: '/seller' },
+    { icon: Package, label: t.shipments || "الشحنات", path: '/seller/shipments' },
+    { icon: PlusCircle, label: t.newShipment || "شحنة جديدة", path: '/seller/shipments/create' },
+    { icon: Wallet, label: t.payments || "الماليات", path: '/seller/financials' },
   ];
 
   const handleLogout = () => { logout(); navigate('/login'); };
@@ -76,13 +71,13 @@ const AdminLayout: React.FC = () => {
         {/* Logo */}
         <div className="h-16 flex items-center gap-3 px-4 border-b border-sidebar-border">
           <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center flex-shrink-0 relative">
-            <Truck className="w-4 h-4 text-primary" />
+            <Store className="w-4 h-4 text-primary" />
             <div className="absolute inset-0 rounded-lg bg-primary/10 blur-sm" />
           </div>
           {sidebarOpen && (
             <motion.div className="overflow-hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <h1 className="font-bold text-sm text-sidebar-foreground">{t.systemName}</h1>
-              <p className="text-[10px] text-sidebar-foreground/50">{t.systemDesc}</p>
+              <h1 className="font-bold text-sm text-sidebar-foreground">{t.systemName || "ShipFlow"}</h1>
+              <p className="text-[10px] text-sidebar-foreground/50">لوحة التاجر</p>
             </motion.div>
           )}
         </div>
@@ -91,7 +86,7 @@ const AdminLayout: React.FC = () => {
         <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
           {menuItems.map((item, i) => {
             const isActive = location.pathname === item.path ||
-              (item.path === '/shipments' && location.pathname.startsWith('/shipments/') && item.path === '/shipments');
+              (item.path === '/seller/shipments' && location.pathname.startsWith('/seller/shipments/') && item.path === '/seller/shipments');
             return (
               <motion.button
                 key={item.path}
@@ -130,7 +125,7 @@ const AdminLayout: React.FC = () => {
             {sidebarOpen && (
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate text-sidebar-foreground">{user?.name}</p>
-                <p className="text-[10px] text-sidebar-foreground/50">{t.admin}</p>
+                <p className="text-[10px] text-sidebar-foreground/50">تاجر</p>
               </div>
             )}
             {sidebarOpen && (
@@ -174,9 +169,9 @@ const AdminLayout: React.FC = () => {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-80">
-                <div className="p-3 border-b font-medium text-sm">{t.notificationsTitle}</div>
+                <div className="p-3 border-b font-medium text-sm">{t.notificationsTitle || "الإشعارات"}</div>
                 {notifications.length === 0 ? (
-                  <div className="p-6 text-center text-sm text-muted-foreground">{t.noNotifications}</div>
+                  <div className="p-6 text-center text-sm text-muted-foreground">{t.noNotifications || "لا توجد إشعارات"}</div>
                 ) : (
                   notifications.slice(0, 5).map(n => (
                     <DropdownMenuItem key={n.id} className="flex flex-col items-start p-3 cursor-pointer"
@@ -204,4 +199,4 @@ const AdminLayout: React.FC = () => {
   );
 };
 
-export default AdminLayout;
+export default SellerLayout;

@@ -12,6 +12,7 @@ import ShipmentsPage from "./pages/admin/ShipmentsPage";
 import CreateShipmentPage from "./pages/admin/CreateShipmentPage";
 import ShipmentDetailsPage from "./pages/admin/ShipmentDetailsPage";
 import CouriersPage from "./pages/admin/CouriersPage";
+import SellersPage from "./pages/admin/SellersPage";
 import UsersPage from "./pages/admin/UsersPage";
 import PaymentsPage from "./pages/admin/PaymentsPage";
 import ReportsPage from "./pages/admin/ReportsPage";
@@ -21,6 +22,11 @@ import CourierShipmentsPage from "./pages/courier/CourierShipmentsPage";
 import CourierShipmentDetailPage from "./pages/courier/CourierShipmentDetailPage";
 import CourierCODPage from "./pages/courier/CourierCODPage";
 import CourierProfilePage from "./pages/courier/CourierProfilePage";
+import SellerLayout from "./layouts/SellerLayout";
+import SellerDashboardPage from "./pages/seller/SellerDashboardPage";
+import SellerShipmentsPage from "./pages/seller/SellerShipmentsPage";
+import SellerCreateShipmentPage from "./pages/seller/SellerCreateShipmentPage";
+import SellerFinancialsPage from "./pages/seller/SellerFinancialsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -38,6 +44,7 @@ const ProtectedRoutes = () => {
           <Route path="/shipments/create" element={<CreateShipmentPage />} />
           <Route path="/shipments/:id" element={<ShipmentDetailsPage />} />
           <Route path="/couriers" element={<CouriersPage />} />
+          <Route path="/sellers" element={<SellersPage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/payments" element={<PaymentsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
@@ -45,6 +52,21 @@ const ProtectedRoutes = () => {
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    );
+  }
+
+  if (user?.role === "seller") {
+    return (
+      <Routes>
+        <Route element={<SellerLayout />}>
+          <Route path="/seller" element={<SellerDashboardPage />} />
+          <Route path="/seller/shipments" element={<SellerShipmentsPage />} />
+          <Route path="/seller/shipments/create" element={<SellerCreateShipmentPage />} />
+          <Route path="/seller/financials" element={<SellerFinancialsPage />} />
+          <Route path="/" element={<Navigate to="/seller" replace />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/seller" replace />} />
       </Routes>
     );
   }
@@ -70,7 +92,9 @@ const AppRoutes = () => {
   return (
     <Routes>
       <Route path="/login" element={
-        isAuthenticated ? <Navigate to={user?.role === 'admin' ? '/dashboard' : '/courier'} replace /> : <LoginPage />
+        isAuthenticated 
+          ? <Navigate to={user?.role === 'admin' ? '/dashboard' : user?.role === 'seller' ? '/seller' : '/courier'} replace /> 
+          : <LoginPage />
       } />
       <Route path="/*" element={<ProtectedRoutes />} />
     </Routes>
