@@ -38,7 +38,6 @@ export const seedDatabase = (): void => {
     phone: "01122334455",
     joinDate: now(),
     status: "active",
-    shippingFee: 40,
   }, 'SEL');
 
   // Also add a courier for testing

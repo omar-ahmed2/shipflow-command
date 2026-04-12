@@ -117,7 +117,7 @@ const CourierShipmentDetailPage: React.FC = () => {
             <MapPin className="w-4 h-4" /> {shipment.address}, {shipment.city}, {shipment.governorate}
           </div>
           <div className="flex justify-between p-3 bg-muted/50 rounded-xl">
-            <div><span className="text-xs text-muted-foreground">{t.price}</span><p className="font-bold font-mono-nums">{formatCurrency(shipment.price)} {t.egp}</p></div>
+            <div><span className="text-xs text-muted-foreground">{t.price}</span><p className="font-bold font-mono-nums">{formatCurrency(shipment.price + (shipment.shippingFee || 0))} {t.egp}</p></div>
             <div><span className="text-xs text-muted-foreground">{t.payment}</span><p className="font-medium">{shipment.paymentType === 'COD' ? t.cod : t.paid}</p></div>
           </div>
           {['assigned', 'out_for_delivery'].includes(shipment.status) && (

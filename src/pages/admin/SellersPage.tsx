@@ -26,7 +26,7 @@ const SellersPage: React.FC = () => {
 
   const filtered = sellers.filter(s => !search || s.storeName.toLowerCase().includes(search.toLowerCase()) || s.phone.includes(search));
 
-  const [form, setForm] = useState({ storeName: '', phone: '', email: '', password: '', address: '', shippingFee: 40 });
+  const [form, setForm] = useState({ storeName: '', phone: '', email: '', password: '', address: '' });
   const updateForm = (k: string, v: string | number) => setForm(prev => ({ ...prev, [k]: v }));
 
   const handleCreate = () => {
@@ -44,11 +44,10 @@ const SellersPage: React.FC = () => {
     db.create<Seller>('sellers', {
       id: generateId('SEL'), userId, storeName: form.storeName, phone: form.phone,
       address: form.address, joinDate: now(), status: 'active',
-      shippingFee: Number(form.shippingFee) || 40,
     } as Seller, 'SEL');
 
     toast.success(`${t.sellerCreated || 'تم إضافة المتجر'}: ${form.storeName}`);
-    setForm({ storeName: '', phone: '', email: '', password: '', address: '', shippingFee: 40 });
+    setForm({ storeName: '', phone: '', email: '', password: '', address: '' });
     setModalOpen(false);
     setRefresh(r => r + 1);
   };
@@ -64,10 +63,10 @@ const SellersPage: React.FC = () => {
     // regardless of whether courier has remitted cash to admin yet.
     const pendingSettlement = cs.filter(s => s.status === 'delivered' && !s.sellerSettled);
     
-    // Amount owed to seller = Shipment Price - Shipping Fee
+    // Amount owed to seller = Shipment Price (item price)
     let pendingAmount = 0;
     pendingSettlement.forEach(s => {
-      pendingAmount += (s.price - (s.shippingFee || 40));
+      pendingAmount += s.price;
     });
 
     // Goods in transit (not delivered yet)
@@ -145,7 +144,7 @@ const SellersPage: React.FC = () => {
                     </div>
                     <div>
                       <p className="font-semibold">{s.storeName}</p>
-                      <p className="text-xs text-muted-foreground">{s.phone} · مصاريف الشحن: {s.shippingFee} ج</p>
+                      <p className="text-xs text-muted-foreground">{s.phone}</p>
                     </div>
                   </div>
                   <Button variant={stats.pendingAmount > 0 ? "default" : "outline"} size="icon" onClick={() => setWalletSeller(s)} className="rounded-full w-9 h-9">
@@ -218,7 +217,6 @@ const SellersPage: React.FC = () => {
             <div><Label>{t.sellerName || 'اسم المتجر'} *</Label><Input value={form.storeName} onChange={e => updateForm('storeName', e.target.value)} className="rounded-xl mt-1" /></div>
             <div><Label>{t.phone} *</Label><Input value={form.phone} onChange={e => updateForm('phone', e.target.value)} className="rounded-xl mt-1" /></div>
             <div><Label>{t.address}</Label><Input value={form.address} onChange={e => updateForm('address', e.target.value)} className="rounded-xl mt-1" /></div>
-            <div><Label>سعر الشحن الافتراضي للمتجر (ج.م) *</Label><Input type="number" value={form.shippingFee} onChange={e => updateForm('shippingFee', e.target.value)} className="rounded-xl mt-1" /></div>
             <hr />
             <p className="text-xs text-muted-foreground">{t.loginDesc}</p>
             <div><Label>{t.email} *</Label><Input type="email" value={form.email} onChange={e => updateForm('email', e.target.value)} className="rounded-xl mt-1" /></div>

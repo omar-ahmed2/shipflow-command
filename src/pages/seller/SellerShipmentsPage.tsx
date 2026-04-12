@@ -120,7 +120,10 @@ const SellerShipmentsPage = () => {
                           <div className="text-xs text-muted-foreground mt-0.5">{shipment.customerPhone}</div>
                         </td>
                         <td className="p-4 text-sm">{shipment.governorate} - {shipment.city}</td>
-                        <td className="p-4 font-bold">{shipment.price} ج.م</td>
+                        <td className="p-4 font-bold">
+                          <div>المُنتجات: {shipment.price} ج.م</div>
+                          <div className="text-xs text-muted-foreground">التوصيل: {shipment.shippingFee || 0} ج.م</div>
+                        </td>
                         <td className="p-4">
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${sLabel?.cls || 'bg-gray-100 text-gray-700'}`}>
                             {sLabel?.label || shipment.status}
@@ -219,7 +222,7 @@ const SellerShipmentsPage = () => {
                     </span>
                     {printShipment.paymentType === 'COD' ? (
                       <p className="text-2xl font-black tracking-tight mt-2">
-                        {printShipment.price} <span className="text-xs font-bold">EGP</span>
+                        {printShipment.price + (printShipment.shippingFee || 0)} <span className="text-xs font-bold">EGP</span>
                       </p>
                     ) : (
                       <p className="text-base font-black mt-2">مدفوع مسبقاً</p>

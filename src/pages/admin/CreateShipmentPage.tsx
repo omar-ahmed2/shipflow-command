@@ -26,7 +26,7 @@ const CreateShipmentPage: React.FC = () => {
 
   const [form, setForm] = useState({
     customerName: '', customerPhone: '', address: '', governorate: '', city: '',
-    price: '', paymentType: 'COD' as 'COD' | 'paid', courierId: '', notes: ''
+    price: '', shippingFee: '', paymentType: 'COD' as 'COD' | 'paid', courierId: '', notes: ''
   });
 
   const couriers = useMemo(() => db.getAll<Courier>('couriers').filter(c => c.status === 'active'), []);
@@ -35,7 +35,7 @@ const CreateShipmentPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.customerName || !form.customerPhone || !form.address || !form.governorate || !form.city || !form.price) return;
+    if (!form.customerName || !form.customerPhone || !form.address || !form.governorate || !form.city || !form.price || !form.shippingFee) return;
 
     setLoading(true);
     await new Promise(r => setTimeout(r, 600));
@@ -49,7 +49,7 @@ const CreateShipmentPage: React.FC = () => {
       id: shipmentId, trackingId, verificationCode,
       customerName: form.customerName, customerPhone: form.customerPhone,
       address: form.address, city: form.city, governorate: form.governorate,
-      price: Number(form.price), paymentType: form.paymentType, codCollected: false,
+      price: Number(form.price), shippingFee: Number(form.shippingFee), paymentType: form.paymentType, codCollected: false,
       status, courierId: (form.courierId && form.courierId !== 'none') ? form.courierId : null,
       createdBy: user?.id || '',
       notes: form.notes, createdAt: now(), updatedAt: now(),
@@ -113,9 +113,15 @@ const CreateShipmentPage: React.FC = () => {
 
           <div className="admin-card p-6 space-y-4">
             <h3 className="font-semibold text-sm mb-2">{t.shipmentInfo}</h3>
-            <div>
-              <Label>{t.price} * ({t.egp})</Label>
-              <Input type="number" value={form.price} onChange={e => update('price', e.target.value)} className="rounded-xl mt-1 font-mono-nums" required min={0} />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>قيمة المنتجات ({t.egp}) *</Label>
+                <Input type="number" value={form.price} onChange={e => update('price', e.target.value)} className="rounded-xl mt-1 font-mono-nums" required min={0} />
+              </div>
+              <div>
+                <Label>سعر التوصيل ({t.egp}) *</Label>
+                <Input type="number" value={form.shippingFee} onChange={e => update('shippingFee', e.target.value)} className="rounded-xl mt-1 font-mono-nums" required min={0} />
+              </div>
             </div>
             <div>
               <Label>{t.paymentType} *</Label>

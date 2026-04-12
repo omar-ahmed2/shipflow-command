@@ -20,15 +20,15 @@ const PaymentsPage: React.FC = () => {
   const couriers = useMemo(() => db.getAll<Courier>('couriers'), [refresh]);
   const codShipments = shipments.filter(s => s.paymentType === 'COD' && s.status !== 'cancelled');
 
-  const totalExpected = codShipments.reduce((s, sh) => s + sh.price, 0);
-  const totalCollected = codShipments.filter(s => s.codCollected).reduce((s, sh) => s + sh.price, 0);
+  const totalExpected = codShipments.reduce((s, sh) => s + sh.price + (sh.shippingFee || 0), 0);
+  const totalCollected = codShipments.filter(s => s.codCollected).reduce((s, sh) => s + sh.price + (sh.shippingFee || 0), 0);
   const pending = totalExpected - totalCollected;
   const collectionPercent = totalExpected > 0 ? Math.round((totalCollected / totalExpected) * 100) : 0;
 
   const codByCourier = couriers.map(c => ({
     name: c.name,
-    collected: codShipments.filter(s => s.courierId === c.id && s.codCollected).reduce((sum, s) => sum + s.price, 0),
-    pending: codShipments.filter(s => s.courierId === c.id && !s.codCollected).reduce((sum, s) => sum + s.price, 0),
+    collected: codShipments.filter(s => s.courierId === c.id && s.codCollected).reduce((sum, s) => sum + s.price + (s.shippingFee || 0), 0),
+    pending: codShipments.filter(s => s.courierId === c.id && !s.codCollected).reduce((sum, s) => sum + s.price + (s.shippingFee || 0), 0),
   })).filter(c => c.collected > 0 || c.pending > 0);
 
   const markCollected = (id: string) => {
@@ -126,7 +126,7 @@ const PaymentsPage: React.FC = () => {
                 <tr key={s.id} className="border-b hover:bg-primary/[0.03] transition-colors">
                   <td className="p-3 font-mono-nums text-xs">{s.trackingId}</td>
                   <td className="p-3">{s.customerName}</td>
-                  <td className="p-3 font-mono-nums">{formatCurrency(s.price)} {t.egp}</td>
+                  <td className="p-3 font-mono-nums">{formatCurrency(s.price + (s.shippingFee || 0))} {t.egp}</td>
                   <td className="p-3">{couriers.find(c => c.id === s.courierId)?.name || '—'}</td>
                   <td className="p-3">
                     <span className="px-2 py-0.5 rounded-full text-xs font-medium"

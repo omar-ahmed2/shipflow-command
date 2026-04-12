@@ -24,8 +24,8 @@ const CourierCODPage: React.FC = () => {
     );
   }, [courierProfile, refresh]);
 
-  const expected = codShipments.reduce((s, sh) => s + sh.price, 0);
-  const collected = codShipments.filter(s => s.courierCollected).reduce((s, sh) => s + sh.price, 0);
+  const expected = codShipments.reduce((s, sh) => s + sh.price + (sh.shippingFee || 0), 0);
+  const collected = codShipments.filter(s => s.courierCollected).reduce((s, sh) => s + sh.price + (sh.shippingFee || 0), 0);
 
   const confirmCollection = (id: string) => {
     db.update('shipments', id, { courierCollected: true });
@@ -71,7 +71,7 @@ const CourierCODPage: React.FC = () => {
               </div>
               <p className="text-sm">{s.customerName}</p>
               <div className="flex items-center justify-between mt-2">
-                <span className="font-mono-nums font-bold">{formatCurrency(s.price)} {t.egp}</span>
+                <span className="font-mono-nums font-bold">{formatCurrency(s.price + (s.shippingFee || 0))} {t.egp}</span>
                 {!s.courierCollected && s.status === 'delivered' && (
                   <motion.div whileTap={{ scale: 0.95 }}>
                     <Button size="sm" className="rounded-xl h-8" onClick={() => confirmCollection(s.id)}>

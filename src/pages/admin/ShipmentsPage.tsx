@@ -178,7 +178,7 @@ const ShipmentsPage: React.FC = () => {
                     <td className="p-3">{s.customerName}</td>
                     <td className="p-3 font-mono-nums text-xs">{s.customerPhone}</td>
                     <td className="p-3">{s.city}</td>
-                    <td className="p-3 font-mono-nums">{formatCurrency(s.price)} {t.egp}</td>
+                    <td className="p-3 font-mono-nums">{formatCurrency(s.price + (s.shippingFee || 0))} {t.egp}</td>
                     <td className="p-3 text-xs">{s.paymentType === 'COD' ? t.cod : t.paid}</td>
                     <td className="p-3"><StatusBadge status={s.status} /></td>
                     <td className="p-3">{getCourierName(s.courierId)}</td>

@@ -24,6 +24,7 @@ const SellerCreateShipmentPage = () => {
     city: '',
     governorate: '',
     price: '',
+    shippingFee: '',
     notes: ''
   });
 
@@ -33,7 +34,7 @@ const SellerCreateShipmentPage = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.customerName || !formData.customerPhone || !formData.address || !formData.city || !formData.governorate || !formData.price) {
+    if (!formData.customerName || !formData.customerPhone || !formData.address || !formData.city || !formData.governorate || !formData.price || !formData.shippingFee) {
       toast.error('يرجى تعبئة جميع الحقول المطلوبة');
       return;
     }
@@ -64,7 +65,7 @@ const SellerCreateShipmentPage = () => {
         createdBy: user?.id || 'unknown',
         verificationCode: generateVerificationCode(),
         notes: formData.notes,
-        shippingFee: seller?.shippingFee || 40 // Default to seller's fee or 40
+        shippingFee: parseFloat(formData.shippingFee) || 0
       };
 
       const created = db.create<Shipment>('shipments', newShipment as any, 'SHP');
@@ -164,19 +165,34 @@ const SellerCreateShipmentPage = () => {
               />
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">المبلغ المطلوب تحصيله (COD) للتاجر <span className="text-red-500">*</span></label>
-              <div className="relative">
-                <input 
-                  type="number" name="price" 
-                  value={formData.price} onChange={handleChange}
-                  className="w-full p-2 border rounded-md bg-background pl-12"
-                  dir="ltr"
-                  required
-                />
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">EGP</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">قيمة المنتجات (ثمن الشحنة للتاجر) <span className="text-red-500">*</span></label>
+                <div className="relative">
+                  <input 
+                    type="number" name="price" 
+                    value={formData.price} onChange={handleChange}
+                    className="w-full p-2 border rounded-md bg-background pl-12"
+                    dir="ltr"
+                    required
+                  />
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">EGP</span>
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">سيتم خصم مصاريف الشحن المتفق عليها من هذا المبلغ لاحقاً في التسويات.</p>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">سعر التوصيل (عمولة الشركة) <span className="text-red-500">*</span></label>
+                <div className="relative">
+                  <input 
+                    type="number" name="shippingFee" 
+                    value={formData.shippingFee} onChange={handleChange}
+                    className="w-full p-2 border rounded-md bg-background pl-12"
+                    dir="ltr"
+                    required
+                  />
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">EGP</span>
+                </div>
+              </div>
             </div>
 
             <div className="space-y-2">

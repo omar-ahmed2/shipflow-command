@@ -38,7 +38,6 @@ export interface Seller {
   address?: string;
   joinDate: string;
   status: "active" | "inactive";
-  shippingFee: number; // default shipping fee agreed with this seller
 }
 
 export interface Shipment {
@@ -53,7 +52,7 @@ export interface Shipment {
   paymentType: "COD" | "paid";
   codCollected: boolean;
   courierCollected?: boolean;
-  shippingFee?: number; // fee deducted from seller
+  shippingFee: number;
   sellerSettled?: boolean; // true if the admin has paid the seller
   status: ShipmentStatus;
   courierId: string | null;

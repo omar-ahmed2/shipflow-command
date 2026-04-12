@@ -51,10 +51,10 @@ const DashboardPage: React.FC = () => {
   const deliveredAll = shipments.filter(s => s.status === 'delivered');
   const retCan = shipments.filter(s => s.status === 'returned' || s.status === 'cancelled');
   const pendingCod = shipments.filter(s => s.paymentType === 'COD' && !s.codCollected && s.status === 'delivered'); // Only pending if delivered and not collected
-  const codAmount = pendingCod.reduce((s, sh) => s + sh.price, 0);
+  const codAmount = pendingCod.reduce((s, sh) => s + sh.price + (sh.shippingFee || 0), 0);
   
-  const collectedCodAmount = shipments.filter(s => s.paymentType === 'COD' && s.codCollected && s.status === 'delivered').reduce((s, sh) => s + sh.price, 0);
-  const totalRevenue = shipments.filter(s => s.status === 'delivered').reduce((s, sh) => s + sh.price, 0);
+  const collectedCodAmount = shipments.filter(s => s.paymentType === 'COD' && s.codCollected && s.status === 'delivered').reduce((s, sh) => s + sh.price + (sh.shippingFee || 0), 0);
+  const totalRevenue = shipments.filter(s => s.status === 'delivered').reduce((s, sh) => s + sh.price + (sh.shippingFee || 0), 0);
 
   const kpis = [
     { icon: Package, label: t.totalShipments, value: shipments.length, color: '#4F8EF7', isAmount: false },

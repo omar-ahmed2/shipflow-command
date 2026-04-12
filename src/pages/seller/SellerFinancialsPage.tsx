@@ -20,9 +20,7 @@ const SellerFinancialsPage = () => {
   // but for mockup we can just sum up delivered shipments minus settled amounts roughly).
   // Actually, let's keep it simple: Show total earned, total settled, and outstanding balance.
   
-  const totalDelivered = shipments.filter(s => s.status === 'delivered').reduce((acc, s) => acc + s.price, 0);
-  const totalShippingFees = shipments.filter(s => s.status === 'delivered').reduce((acc, s) => acc + (s.shippingFee || 40), 0);
-  const totalNetEarned = totalDelivered - totalShippingFees;
+  const totalNetEarned = shipments.filter(s => s.status === 'delivered').reduce((acc, s) => acc + s.price, 0);
   
   const totalSettled = settlements.reduce((acc, s) => acc + s.amount, 0);
   const outstandingBalance = totalNetEarned - totalSettled;
@@ -51,7 +49,7 @@ const SellerFinancialsPage = () => {
             <div>
               <p className="text-sm font-medium text-muted-foreground">إجمالي الأرباح الصافية</p>
               <h3 className="text-2xl font-bold mt-2">{totalNetEarned} ج.م</h3>
-              <p className="text-xs text-muted-foreground mt-1">بعد خصم مصاريف الشحن للإيرادات المكتملة</p>
+              <p className="text-xs text-muted-foreground mt-1">عن إجمالي الشحنات المكتملة</p>
             </div>
             <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-green-500/10">
               <ArrowDownRight className="w-6 h-6 text-green-500" />

@@ -81,7 +81,7 @@ const CourierShipmentsPage: React.FC = () => {
                   <MapPin className="w-3 h-3" /> {s.city}
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="font-mono-nums font-bold text-sm">{formatCurrency(s.price)} {t.egp}</span>
+                  <span className="font-mono-nums font-bold text-sm">{formatCurrency(s.price + (s.shippingFee || 0))} {t.egp}</span>
                   <div className="flex gap-2">
                     <motion.a whileTap={{ scale: 0.9 }} href={`tel:${s.customerPhone}`}
                       className="w-8 h-8 rounded-lg border flex items-center justify-center"

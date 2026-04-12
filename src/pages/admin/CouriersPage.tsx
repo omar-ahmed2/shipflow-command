@@ -63,11 +63,11 @@ const CouriersPage: React.FC = () => {
     
     // Cash debt (ready to remit)
     const pendingCodShipments = cs.filter(s => s.status === 'delivered' && s.paymentType === 'COD' && !s.codCollected && s.price > 0);
-    const pendingAmount = pendingCodShipments.reduce((sum, s) => sum + s.price, 0);
+    const pendingAmount = pendingCodShipments.reduce((sum, s) => sum + s.price + (s.shippingFee || 0), 0);
 
     // Goods debt (not yet delivered, but out for delivery or assigned) - عهدة بضاعة
     const goodsInTransitShipments = cs.filter(s => ['assigned', 'out_for_delivery'].includes(s.status) && s.paymentType === 'COD' && s.price > 0);
-    const goodsInTransitAmount = goodsInTransitShipments.reduce((sum, s) => sum + s.price, 0);
+    const goodsInTransitAmount = goodsInTransitShipments.reduce((sum, s) => sum + s.price + (s.shippingFee || 0), 0);
 
     // Total Exepcted Custody
     const totalCustody = pendingAmount + goodsInTransitAmount;

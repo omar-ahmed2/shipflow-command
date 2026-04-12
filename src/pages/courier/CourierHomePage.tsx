@@ -26,7 +26,7 @@ const CourierHomePage: React.FC = () => {
   const assigned = todayShips.filter(s => s.status === 'assigned').length;
   const onWay = todayShips.filter(s => s.status === 'out_for_delivery').length;
   const deliveredToday = shipments.filter(s => s.status === 'delivered' && s.deliveredAt && isToday(s.deliveredAt)).length;
-  const pendingCod = shipments.filter(s => s.paymentType === 'COD' && !s.codCollected && s.status === 'delivered').reduce((s, sh) => s + sh.price, 0);
+  const pendingCod = shipments.filter(s => s.paymentType === 'COD' && !s.codCollected && s.status === 'delivered').reduce((s, sh) => s + sh.price + (sh.shippingFee || 0), 0);
 
   const kpis = [
     { icon: Package, label: t.todayAssigned, value: assigned, color: '#A78BFA' },
@@ -80,7 +80,7 @@ const CourierHomePage: React.FC = () => {
                   <MapPin className="w-3 h-3" style={{ color: 'hsl(var(--primary))' }} /> {s.city} — {s.address}
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="font-mono-nums font-bold">{formatCurrency(s.price)} {t.egp}</span>
+                  <span className="font-mono-nums font-bold">{formatCurrency(s.price + (s.shippingFee || 0))} {t.egp}</span>
                   <span className="text-xs px-2 py-0.5 rounded-lg"
                     style={s.paymentType === 'COD'
                       ? { background: 'rgba(245,158,11,0.1)', color: '#F59E0B' }

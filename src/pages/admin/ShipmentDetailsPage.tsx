@@ -207,7 +207,7 @@ const ShipmentDetailsPage: React.FC = () => {
             <div className="border-[3px] border-black flex-[2] flex flex-col items-center justify-center py-4 relative">
               <span className="absolute top-0 right-0 bg-black text-white text-[10px] px-2 py-0.5 font-bold">المبلغ المطلوب (COD)</span>
               {shipment.paymentType === 'COD' ? (
-                <p className="text-3xl font-black tracking-tight mt-2">{formatCurrency(shipment.price)} <span className="text-sm font-bold">EGP</span></p>
+                <p className="text-3xl font-black tracking-tight mt-2">{formatCurrency(shipment.price + (shipment.shippingFee || 0))} <span className="text-sm font-bold">EGP</span></p>
               ) : (
                 <p className="text-2xl font-black mt-2">خالص (مدفوع مسبقاً)</p>
               )}
@@ -257,7 +257,7 @@ const ShipmentDetailsPage: React.FC = () => {
             <h3 className="font-semibold text-sm mb-4">{t.shipmentInfo}</h3>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div className="col-span-2 border-b pb-2 mb-2"><span className="text-muted-foreground block mb-1">المصدر / المتجر</span><p className="font-bold text-primary">{senderName}</p></div>
-              <div><span className="text-muted-foreground">{t.price}</span><p className="font-mono-nums font-bold">{formatCurrency(shipment.price)} {t.egp}</p></div>
+              <div><span className="text-muted-foreground">{t.price}</span><p className="font-mono-nums font-bold">{formatCurrency(shipment.price + (shipment.shippingFee || 0))} {t.egp}</p></div>
               <div><span className="text-muted-foreground">{t.payment}</span><p>{shipment.paymentType === 'COD' ? t.cod : t.paid}</p></div>
               <div><span className="text-muted-foreground">{t.status}</span><div className="mt-1"><StatusBadge status={shipment.status} /></div></div>
               <div><span className="text-muted-foreground">{t.courier}</span><p>{courierName}</p></div>
