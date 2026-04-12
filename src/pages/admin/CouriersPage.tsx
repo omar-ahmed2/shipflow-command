@@ -2,28 +2,28 @@ import React, { useState, useMemo } from 'react';
 import { useTheme } from '@/context/ThemeContext';
 import { db } from '@/db';
 import { generateId, hashPassword, now } from '@/db/helpers';
-import type { Courier, User, Shipment, Settlement } from '@/db/schema';
+import type { Courier, User, Shipment } from '@/db/schema';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { Plus, Search, Truck, Grid3X3, List, Wallet, Receipt, CheckCircle, Package } from 'lucide-react';
+import { Plus, Search, Truck, Grid3X3, List, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { formatCurrency, formatDateTime } from '@/utils/formatters';
+import { useNavigate } from 'react-router-dom';
+import { formatCurrency } from '@/utils/formatters';
 
 const CouriersPage: React.FC = () => {
-  const { t, lang } = useTheme();
+  const { t } = useTheme();
+  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [modalOpen, setModalOpen] = useState(false);
-  const [walletCourier, setWalletCourier] = useState<Courier | null>(null);
   const [refresh, setRefresh] = useState(0);
   const [search, setSearch] = useState('');
 
   const couriers = useMemo(() => db.getAll<Courier>('couriers'), [refresh]);
   const shipments = useMemo(() => db.getAll<Shipment>('shipments'), [refresh]);
-  const settlements = useMemo(() => db.getAll<Settlement>('settlements').sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [refresh]);
 
   const filtered = couriers.filter(c => !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search));
 
@@ -61,42 +61,15 @@ const CouriersPage: React.FC = () => {
     const returned = cs.filter(s => s.status === 'returned').length;
     const rate = cs.length > 0 ? Math.round((delivered / cs.length) * 100) : 0;
     
-    // Cash debt (ready to remit)
     const pendingCodShipments = cs.filter(s => s.status === 'delivered' && s.paymentType === 'COD' && !s.codCollected && s.price > 0);
     const pendingAmount = pendingCodShipments.reduce((sum, s) => sum + s.price + (s.shippingFee || 0), 0);
 
-    // Goods debt (not yet delivered, but out for delivery or assigned) - عهدة بضاعة
     const goodsInTransitShipments = cs.filter(s => ['assigned', 'out_for_delivery'].includes(s.status) && s.paymentType === 'COD' && s.price > 0);
     const goodsInTransitAmount = goodsInTransitShipments.reduce((sum, s) => sum + s.price + (s.shippingFee || 0), 0);
 
-    // Total Exepcted Custody
     const totalCustody = pendingAmount + goodsInTransitAmount;
 
-    return { assigned, delivered, returned, rate, total: cs.length, pendingAmount, pendingCodShipments, goodsInTransitAmount, totalCustody };
-  };
-
-  const handleSettleWallet = () => {
-      if (!walletCourier) return;
-      const stats = getCourierStats(walletCourier.id);
-      if (stats.pendingAmount <= 0) return toast.info("لاتوجد سيولة نقدية للتوريد حالياً. قم بتسليم الشحنات أولاً.");
-
-      // Mark all pending COD as collected
-      stats.pendingCodShipments.forEach(s => {
-          db.update('shipments', s.id, { codCollected: true });
-      });
-
-      // Add Settlement Record
-      db.create<Settlement>('settlements', {
-          id: generateId('STL'),
-          courierId: walletCourier.id,
-          amount: stats.pendingAmount,
-          shipmentCount: stats.pendingCodShipments.length,
-          date: now(),
-          adminName: 'Admin', // In real app, fetch from auth context
-      } as Settlement, 'STL');
-
-      toast.success(`تم استلام نقدية بقيمة ${formatCurrency(stats.pendingAmount)} جنيه بنجاح وإقفال عهدة الكاش.`);
-      setRefresh(r => r + 1);
+    return { assigned, delivered, returned, rate, total: cs.length, pendingAmount, goodsInTransitAmount, totalCustody };
   };
 
   return (
@@ -130,8 +103,11 @@ const CouriersPage: React.FC = () => {
             return (
               <div key={c.id} className="admin-card p-5 hover:-translate-y-1 transition-transform relative">
                 <div className="flex justify-between items-start mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-lg font-bold text-primary">
+                   <div 
+                    className="flex items-center gap-3 cursor-pointer hover:underline group" 
+                    onClick={() => navigate(`/couriers/${c.id}`)}
+                  >
+                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-lg font-bold text-primary group-hover:bg-primary group-hover:text-white transition-colors">
                       {c.name.charAt(0)}
                     </div>
                     <div>
@@ -139,8 +115,8 @@ const CouriersPage: React.FC = () => {
                       <p className="text-xs text-muted-foreground">● {t[c.status]} · {c.zone}</p>
                     </div>
                   </div>
-                  <Button variant={stats.totalCustody > 0 ? "default" : "outline"} size="icon" onClick={() => setWalletCourier(c)} className="rounded-full w-9 h-9">
-                    <Wallet className="w-4 h-4" />
+                  <Button variant="ghost" size="icon" onClick={() => navigate(`/couriers/${c.id}`)} className="rounded-full w-9 h-9">
+                    <ExternalLink className="w-4 h-4" />
                   </Button>
                 </div>
                 
@@ -156,7 +132,7 @@ const CouriersPage: React.FC = () => {
                       </div>
                       <div className="w-full h-px bg-orange-200 dark:bg-orange-800 my-1"/>
                       <div className="flex justify-between items-center">
-                        <span className="text-xs font-bold text-foreground">إجمالي العهدة للحساب</span>
+                        <span className="text-xs font-bold text-foreground">إجمالي العهدة</span>
                         <span className="font-bold text-foreground">{formatCurrency(stats.totalCustody)} ج</span>
                       </div>
                     </div>
@@ -177,8 +153,8 @@ const CouriersPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">{t.successRate}</span>
-                  <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                  <span className="text-xs text-muted-foreground text-[10px]">{t.successRate}</span>
+                  <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                     <div className="h-full bg-success rounded-full transition-all" style={{ width: `${stats.rate}%` }} />
                   </div>
                   <span className="text-xs font-mono-nums font-medium">{stats.rate}%</span>
@@ -202,7 +178,14 @@ const CouriersPage: React.FC = () => {
               const stats = getCourierStats(c.id);
               return (
                 <tr key={c.id} className="border-b hover:bg-muted/30">
-                  <td className="p-3 font-medium">{c.name}</td>
+                  <td className="p-3">
+                    <button 
+                      className="font-medium hover:text-primary hover:underline transition-colors"
+                      onClick={() => navigate(`/couriers/${c.id}`)}
+                    >
+                      {c.name}
+                    </button>
+                  </td>
                   <td className="p-3 font-mono-nums">{c.phone}</td>
                   <td className="p-3">
                     <div className="flex flex-col text-xs font-mono-nums">
@@ -213,8 +196,8 @@ const CouriersPage: React.FC = () => {
                   <td className="p-3 font-bold text-orange-600">{formatCurrency(stats.totalCustody)} ج</td>
                   <td className="p-3 font-mono-nums">{stats.rate}%</td>
                   <td className="p-3 text-end">
-                    <Button variant="outline" size="sm" onClick={() => setWalletCourier(c)}>
-                      <Wallet className="w-4 h-4 me-2"/> تصفية وإدارة
+                    <Button variant="outline" size="sm" onClick={() => navigate(`/couriers/${c.id}`)}>
+                      <ExternalLink className="w-4 h-4 me-2"/> {t.viewProfile}
                     </Button>
                   </td>
                 </tr>
@@ -254,94 +237,6 @@ const CouriersPage: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Wallet / Settlement Modal */}
-      {walletCourier && (
-          <Dialog open={!!walletCourier} onOpenChange={(open) => !open && setWalletCourier(null)}>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                      <DialogTitle className="flex items-center gap-2">
-                        <Wallet className="w-5 h-5 text-primary" /> خزانة المندوب: {walletCourier.name}
-                      </DialogTitle>
-                  </DialogHeader>
-
-                  {/* Summary */}
-                  {(() => {
-                      const stats = getCourierStats(walletCourier.id);
-                      const courierSettlements = settlements.filter(s => s.courierId === walletCourier.id);
-                      
-                      return (
-                          <div className="space-y-6 mt-4 mb-2">
-                              {/* Summary Boxes */}
-                              <div className="grid grid-cols-2 gap-4">
-                                <div className="border border-border/50 bg-primary/5 p-4 rounded-2xl flex flex-col justify-center items-center text-center">
-                                    <Package className="w-6 h-6 text-primary mb-2 opacity-80" />
-                                    <p className="text-xs font-semibold text-muted-foreground mb-1 uppercase tracking-widest">عهدة بضاعة (بالطريق)</p>
-                                    <p className="text-2xl font-black text-primary tracking-tight font-mono-nums mb-1">{formatCurrency(stats.goodsInTransitAmount)} ج.م</p>
-                                    <p className="text-[10px] bg-background px-2 py-0.5 rounded-full border text-muted-foreground">شحنات لم تُسلم للعميل بعد</p>
-                                </div>
-                                <div className="border border-orange-200 dark:border-orange-900 bg-orange-50 dark:bg-orange-900/10 p-4 rounded-2xl flex flex-col justify-center items-center text-center">
-                                    <Wallet className="w-6 h-6 text-orange-600 mb-2 opacity-80" />
-                                    <p className="text-xs font-semibold text-orange-600 mb-1 uppercase tracking-widest">نقدية جاهزة للتوريد</p>
-                                    <p className="text-2xl font-black text-orange-600 tracking-tight font-mono-nums mb-1">{formatCurrency(stats.pendingAmount)} ج.م</p>
-                                    <p className="text-[10px] bg-background px-2 py-0.5 rounded-full border text-muted-foreground">تم تحصيلها من العملاء</p>
-                                </div>
-                              </div>
-
-                              <div className="border-t border-border/50 pt-4 flex flex-col items-center">
-                                  <p className="text-xs font-semibold text-muted-foreground uppercase">إجمالي عهدة المندوب (كاش + بضاعة)</p>
-                                  <p className="text-4xl font-black font-mono-nums mt-1">{formatCurrency(stats.totalCustody)} <span className="text-lg">ج.م</span></p>
-
-                                  {stats.pendingAmount > 0 ? (
-                                    <Button onClick={handleSettleWallet} className="mt-5 rounded-xl w-full max-w-sm" size="lg">
-                                        <CheckCircle className="w-5 h-5 me-2" />
-                                        استلام مبلغ {formatCurrency(stats.pendingAmount)} ج من المندوب وإقفال
-                                    </Button>
-                                  ) : (
-                                    <div className="mt-4 px-4 py-2 border rounded-full bg-muted text-muted-foreground font-semibold text-sm">
-                                       لاتوجد نقدية جاهزة للتوريد (رصيد الكاش مُصفر)
-                                    </div>
-                                  )}
-                              </div>
-
-                              <hr className="my-2" />
-
-                               {/* History Feed */}
-                               <div>
-                                   <div className="flex items-center gap-2 mb-4 text-emerald-700 dark:text-emerald-500 font-bold">
-                                       <Receipt className="w-5 h-5" /> 
-                                       <h3>سجل الدفعات والتوريدات السابقة</h3>
-                                   </div>
-                                   
-                                   {courierSettlements.length === 0 ? (
-                                       <p className="text-sm text-center py-6 text-muted-foreground bg-muted/30 rounded-xl">لا يوجد أي توريدات سابقة لهذا المندوب.</p>
-                                   ) : (
-                                       <div className="space-y-3">
-                                           {courierSettlements.map(settlement => (
-                                               <div key={settlement.id} className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between p-4 border rounded-xl hover:bg-muted/30 transition-colors">
-                                                   <div>
-                                                       <p className="font-bold text-lg text-primary leading-tight font-mono-nums">
-                                                          + {formatCurrency(settlement.amount)} ج
-                                                       </p>
-                                                       <p className="text-xs text-muted-foreground mt-0.5">
-                                                           تسوية {settlement.shipmentCount} شحنات • بواسطة {settlement.adminName}
-                                                       </p>
-                                                   </div>
-                                                   <div className="text-xs font-mono-nums bg-muted px-3 py-1.5 rounded-lg text-center font-medium">
-                                                       {formatDateTime(settlement.date, lang)}
-                                                   </div>
-                                               </div>
-                                           ))}
-                                       </div>
-                                   )}
-                               </div>
-                          </div>
-                      );
-                  })()}
-              </DialogContent>
-          </Dialog>
-      )}
-
     </div>
   );
 };

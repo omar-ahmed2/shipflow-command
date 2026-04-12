@@ -44,8 +44,8 @@ export const seedDatabase = (): void => {
   const courier: User = {
     id: "USR-COURIER-001",
     name: "محمد أحمد",
-    email: "courier@gmail.com",
-    passwordHash: hashPassword("courier123"),
+    email: "mohamedahmed@gmail.com",
+    passwordHash: hashPassword("mohamedahmed@2004"),
     role: "courier",
     status: "active",
     createdAt: now(),

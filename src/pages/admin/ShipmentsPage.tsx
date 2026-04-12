@@ -174,14 +174,36 @@ const ShipmentsPage: React.FC = () => {
                   <tr key={s.id} className="border-b hover:bg-muted/30 transition-colors">
                     <td className="p-3"><input type="checkbox" checked={selected.has(s.id)} onChange={() => toggleSelect(s.id)} className="rounded" /></td>
                     <td className="p-3 font-mono-nums text-xs">{s.trackingId}</td>
-                    <td className="p-3 text-xs font-semibold text-primary">{getSellerName(s.sellerId)}</td>
+                    <td className="p-3 text-xs font-semibold">
+                      {s.sellerId ? (
+                        <button 
+                          onClick={() => navigate(`/sellers/${s.sellerId}`)}
+                          className="text-primary hover:underline"
+                        >
+                          {getSellerName(s.sellerId)}
+                        </button>
+                      ) : (
+                        <span className="text-muted-foreground">{getSellerName(s.sellerId)}</span>
+                      )}
+                    </td>
                     <td className="p-3">{s.customerName}</td>
                     <td className="p-3 font-mono-nums text-xs">{s.customerPhone}</td>
                     <td className="p-3">{s.city}</td>
                     <td className="p-3 font-mono-nums">{formatCurrency(s.price + (s.shippingFee || 0))} {t.egp}</td>
                     <td className="p-3 text-xs">{s.paymentType === 'COD' ? t.cod : t.paid}</td>
                     <td className="p-3"><StatusBadge status={s.status} /></td>
-                    <td className="p-3">{getCourierName(s.courierId)}</td>
+                    <td className="p-3">
+                      {s.courierId ? (
+                        <button 
+                          onClick={() => navigate(`/couriers/${s.courierId}`)}
+                          className="hover:text-primary hover:underline transition-colors"
+                        >
+                          {getCourierName(s.courierId)}
+                        </button>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
                     <td className="p-3 text-muted-foreground text-xs">{formatDate(s.createdAt, lang)}</td>
                     <td className="p-3">
                       <DropdownMenu>

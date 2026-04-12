@@ -6,7 +6,7 @@ import { db } from '@/db';
 import type { Notification } from '@/db/schema';
 import {
   LayoutDashboard, Package, PlusCircle, Truck, Users, Wallet, BarChart3, Settings,
-  LogOut, Menu, Bell, Moon, Sun, Globe, ChevronLeft, Store
+  LogOut, Menu, Bell, Moon, Sun, Globe, ChevronLeft, Store, Receipt
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -50,6 +50,7 @@ const AdminLayout: React.FC = () => {
     { icon: Truck, label: t.couriers, path: '/couriers' },
     { icon: Store, label: t.sellers || 'المتاجر', path: '/sellers' },
     { icon: Users, label: t.users, path: '/users' },
+    { icon: Receipt, label: t.settlementsHub || 'التحصيلات', path: '/settlements' },
     { icon: Wallet, label: t.payments, path: '/payments' },
     { icon: BarChart3, label: t.reports, path: '/reports' },
     { icon: Settings, label: t.settings, path: '/settings' },

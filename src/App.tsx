@@ -22,6 +22,9 @@ import CourierShipmentsPage from "./pages/courier/CourierShipmentsPage";
 import CourierShipmentDetailPage from "./pages/courier/CourierShipmentDetailPage";
 import CourierCODPage from "./pages/courier/CourierCODPage";
 import CourierProfilePage from "./pages/courier/CourierProfilePage";
+import AdminCourierProfilePage from "./pages/admin/CourierProfilePage";
+import AdminSellerProfilePage from "./pages/admin/SellerProfilePage";
+import SettlementsPage from "./pages/admin/SettlementsPage";
 import SellerLayout from "./layouts/SellerLayout";
 import SellerDashboardPage from "./pages/seller/SellerDashboardPage";
 import SellerShipmentsPage from "./pages/seller/SellerShipmentsPage";
@@ -44,9 +47,12 @@ const ProtectedRoutes = () => {
           <Route path="/shipments/create" element={<CreateShipmentPage />} />
           <Route path="/shipments/:id" element={<ShipmentDetailsPage />} />
           <Route path="/couriers" element={<CouriersPage />} />
+          <Route path="/couriers/:id" element={<AdminCourierProfilePage />} />
           <Route path="/sellers" element={<SellersPage />} />
+          <Route path="/sellers/:id" element={<AdminSellerProfilePage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/payments" element={<PaymentsPage />} />
+          <Route path="/settlements" element={<SettlementsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />

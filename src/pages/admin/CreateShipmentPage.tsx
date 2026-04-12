@@ -4,7 +4,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/db';
 import { generateId, generateTrackingId, generateVerificationCode, now } from '@/db/helpers';
-import type { Shipment, Courier, ShipmentEvent, Notification } from '@/db/schema';
+import type { Shipment, Courier, Seller, ShipmentEvent, Notification } from '@/db/schema';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -26,10 +26,11 @@ const CreateShipmentPage: React.FC = () => {
 
   const [form, setForm] = useState({
     customerName: '', customerPhone: '', address: '', governorate: '', city: '',
-    price: '', shippingFee: '', paymentType: 'COD' as 'COD' | 'paid', courierId: '', notes: ''
+    price: '', shippingFee: '', paymentType: 'COD' as 'COD' | 'paid', courierId: '', sellerId: '', notes: ''
   });
 
   const couriers = useMemo(() => db.getAll<Courier>('couriers').filter(c => c.status === 'active'), []);
+  const sellers = useMemo(() => db.getAll<Seller>('sellers').filter(s => s.status === 'active'), []);
 
   const update = (key: string, value: string) => setForm(prev => ({ ...prev, [key]: value }));
 
@@ -50,7 +51,9 @@ const CreateShipmentPage: React.FC = () => {
       customerName: form.customerName, customerPhone: form.customerPhone,
       address: form.address, city: form.city, governorate: form.governorate,
       price: Number(form.price), shippingFee: Number(form.shippingFee), paymentType: form.paymentType, codCollected: false,
-      status, courierId: (form.courierId && form.courierId !== 'none') ? form.courierId : null,
+      status, 
+      courierId: (form.courierId && form.courierId !== 'none') ? form.courierId : null,
+      sellerId: (form.sellerId && form.sellerId !== 'none') ? form.sellerId : null,
       createdBy: user?.id || '',
       notes: form.notes, createdAt: now(), updatedAt: now(),
     };
@@ -143,6 +146,16 @@ const CreateShipmentPage: React.FC = () => {
                 <SelectContent>
                   <SelectItem value="none">{t.noAssignment}</SelectItem>
                   {couriers.map(c => <SelectItem key={c.id} value={c.id}>{c.name} — {c.zone}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>{t.seller}</Label>
+              <Select value={form.sellerId} onValueChange={v => update('sellerId', v)}>
+                <SelectTrigger className="rounded-xl mt-1"><SelectValue placeholder={t.selectSeller} /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">{t.noSeller}</SelectItem>
+                  {sellers.map(s => <SelectItem key={s.id} value={s.id}>{s.storeName}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
