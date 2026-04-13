@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { Analytics } from "@vercel/analytics/react";
 import LoginPage from "./pages/LoginPage";
 import AdminLayout from "./layouts/AdminLayout";
 import CourierLayout from "./layouts/CourierLayout";
@@ -116,6 +117,7 @@ const App = () => (
           <BrowserRouter>
             <AppRoutes />
           </BrowserRouter>
+          <Analytics />
         </TooltipProvider>
       </AuthProvider>
     </ThemeProvider>
