@@ -16,11 +16,13 @@ const SellerFinancialsPage = () => {
   const settlements = db.query<Settlement>('settlements', s => s.sellerId === sellerId);
   const shipments = db.query<Shipment>('shipments', s => s.sellerId === sellerId);
 
-  // Delivered shipments that haven't been settled yet (this relies on more complex logic usually, 
-  // but for mockup we can just sum up delivered shipments minus settled amounts roughly).
-  // Actually, let's keep it simple: Show total earned, total settled, and outstanding balance.
-  
-  const totalNetEarned = shipments.filter(s => s.status === 'delivered').reduce((acc, s) => acc + s.price, 0);
+  const totalNetEarned = shipments.filter(s => ['delivered', 'returned'].includes(s.status)).reduce((acc, s) => {
+    if (s.status === 'delivered') {
+      return acc + (s.paymentType === 'COD' ? s.price : -(s.shippingFee || 0));
+    } else {
+      return acc - (s.shippingFee || 0);
+    }
+  }, 0);
   
   const totalSettled = settlements.reduce((acc, s) => acc + s.amount, 0);
   const outstandingBalance = totalNetEarned - totalSettled;

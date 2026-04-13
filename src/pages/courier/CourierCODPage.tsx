@@ -20,7 +20,7 @@ const CourierCODPage: React.FC = () => {
   const codShipments = useMemo(() => {
     if (!courierProfile) return [];
     return db.query<Shipment>('shipments', s =>
-      s.courierId === courierProfile.id && s.paymentType === 'COD' && s.status !== 'cancelled'
+      s.courierId === courierProfile.id && s.paymentType === 'COD' && s.status === 'delivered'
     );
   }, [courierProfile, refresh]);
 

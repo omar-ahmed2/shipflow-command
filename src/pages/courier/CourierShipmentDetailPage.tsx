@@ -116,9 +116,23 @@ const CourierShipmentDetailPage: React.FC = () => {
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <MapPin className="w-4 h-4" /> {shipment.address}, {shipment.city}, {shipment.governorate}
           </div>
-          <div className="flex justify-between p-3 bg-muted/50 rounded-xl">
-            <div><span className="text-xs text-muted-foreground">{t.price}</span><p className="font-bold font-mono-nums">{formatCurrency(shipment.price + (shipment.shippingFee || 0))} {t.egp}</p></div>
-            <div><span className="text-xs text-muted-foreground">{t.payment}</span><p className="font-medium">{shipment.paymentType === 'COD' ? t.cod : t.paid}</p></div>
+          <div className="space-y-3 bg-muted/50 p-4 rounded-2xl">
+            <div className="flex justify-between items-center text-sm">
+                <span className="text-muted-foreground">سعر الشحنة:</span>
+                <span className="font-mono-nums font-bold">{formatCurrency(shipment.price)} ج</span>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+                <span className="text-muted-foreground">سعر التوصيل:</span>
+                <span className="font-mono-nums font-bold">{formatCurrency(shipment.shippingFee || 0)} ج</span>
+            </div>
+            <div className="pt-2 border-t flex justify-between items-center">
+                <span className="font-bold text-primary">إجمالي المبلغ المطلوب:</span>
+                <span className="text-xl font-black font-mono-nums text-primary">{formatCurrency(shipment.price + (shipment.shippingFee || 0))} ج</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
+            <span className="text-xs">{t.payment}:</span>
+            <span className="font-medium text-foreground">{shipment.paymentType === 'COD' ? t.cod : t.paid}</span>
           </div>
           {['assigned', 'out_for_delivery'].includes(shipment.status) && (
             <div className="grid grid-cols-2 gap-2">

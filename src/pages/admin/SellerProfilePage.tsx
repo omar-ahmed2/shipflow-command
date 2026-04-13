@@ -16,12 +16,15 @@ import {
   ArrowLeft,
   Clock,
   ExternalLink,
-  Users
+  Users,
+  Trash2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { motion } from 'framer-motion';
 import { pageVariants, cardVariants } from '@/animations/variants';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
+import { toast } from 'sonner';
 
 const SellerProfilePage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -29,6 +32,7 @@ const SellerProfilePage: React.FC = () => {
     const navigate = useNavigate();
 
     const seller = useMemo(() => db.getById<Seller>('sellers', id || ''), [id]);
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
     const userRole = useMemo(() => seller ? db.getById<User>('users', seller.userId) : null, [seller]);
     const shipments = useMemo(() => db.getAll<Shipment>('shipments').filter(s => s.sellerId === id), [id]);
     const settlements = useMemo(() => db.getAll<Settlement>('settlements').filter(s => s.sellerId === id).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [id]);
@@ -48,9 +52,30 @@ const SellerProfilePage: React.FC = () => {
         delivered: shipments.filter(s => s.status === 'delivered').length,
         returned: shipments.filter(s => s.status === 'returned').length,
         
-        // Financials
-        pendingSettlement: shipments.filter(s => s.status === 'delivered' && !s.sellerSettled).reduce((sum, s) => sum + s.price, 0),
+        // Financials - Logic matching SettlementsPage
+        pendingSettlement: shipments.filter(s => ['delivered', 'returned'].includes(s.status) && !s.sellerSettled).reduce((sum, s) => {
+            if (s.status === 'delivered') {
+                return sum + (s.paymentType === 'COD' ? s.price : -(s.shippingFee || 0));
+            } else {
+                return sum - (s.shippingFee || 0); // Returned
+            }
+        }, 0),
         goodsInTransit: shipments.filter(s => ['assigned', 'out_for_delivery', 'pending'].includes(s.status)).reduce((sum, s) => sum + s.price, 0),
+    };
+
+    const handleDelete = () => {
+        if (!seller) return;
+        
+        // Clear shipments sellerId
+        const sellerShipments = db.getAll<Shipment>('shipments').filter(s => s.sellerId === id);
+        sellerShipments.forEach(s => db.update('shipments', s.id, { sellerId: undefined }));
+        
+        // Delete records
+        if (seller.userId) db.delete('users', seller.userId);
+        db.delete('sellers', seller.id);
+        
+        toast.success('تم حذف المتجر وكل بياناته بنجاح');
+        navigate('/sellers');
     };
 
     return (
@@ -60,16 +85,21 @@ const SellerProfilePage: React.FC = () => {
             animate="animate" 
             className="space-y-6"
         >
-            <div className="flex items-center gap-4">
-                <Button variant="ghost" size="icon" onClick={() => navigate('/sellers')} className="rounded-full">
-                    <ArrowLeft className="w-5 h-5 rtl:rotate-180" />
-                </Button>
-                <div>
-                    <h2 className="text-2xl font-bold">{seller.storeName}</h2>
-                    <p className="text-muted-foreground text-sm flex items-center gap-1">
-                        <Users className="w-3 h-3" /> {t[seller.status]} • {seller.address || 'لا يوجد عنوان'}
-                    </p>
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <Button variant="ghost" size="icon" onClick={() => navigate('/sellers')} className="rounded-full">
+                        <ArrowLeft className="w-5 h-5 rtl:rotate-180" />
+                    </Button>
+                    <div>
+                        <h2 className="text-2xl font-bold">{seller.storeName}</h2>
+                        <p className="text-muted-foreground text-sm flex items-center gap-1">
+                            <Users className="w-3 h-3" /> {t[seller.status]} • {seller.address || 'لا يوجد عنوان'}
+                        </p>
+                    </div>
                 </div>
+                <Button variant="destructive" size="sm" onClick={() => setIsDeleteDialogOpen(true)} className="rounded-xl">
+                    <Trash2 className="w-4 h-4 me-2" /> حذف المتجر
+                </Button>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -146,18 +176,20 @@ const SellerProfilePage: React.FC = () => {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Card className="border-none shadow-sm bg-emerald-500/5">
+                        <Card className={`border-none shadow-sm ${stats.pendingSettlement >= 0 ? 'bg-emerald-500/5' : 'bg-destructive/5'}`}>
                             <CardHeader className="pb-2">
-                                <CardTitle className="text-xs font-bold text-emerald-600 uppercase flex items-center justify-between">
-                                    {t.sellerWallet}
+                                <CardTitle className={`text-xs font-bold uppercase flex items-center justify-between ${stats.pendingSettlement >= 0 ? 'text-emerald-600' : 'text-destructive'}`}>
+                                    {stats.pendingSettlement >= 0 ? t.sellerWallet : 'مستحقات (مديونية)'}
                                     <Wallet className="w-4 h-4 opacity-50" />
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <p className="text-3xl font-black font-mono-nums text-emerald-600">
-                                    {formatCurrency(stats.pendingSettlement)} <span className="text-sm">ج.م</span>
+                                <p className={`text-3xl font-black font-mono-nums ${stats.pendingSettlement >= 0 ? 'text-emerald-600' : 'text-destructive'}`}>
+                                    {formatCurrency(Math.abs(stats.pendingSettlement))} <span className="text-sm">ج.م</span>
                                 </p>
-                                <p className="text-xs text-muted-foreground mt-1">مستحقات أرباح تنتظر التسوية للتاجر</p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    {stats.pendingSettlement >= 0 ? 'مستحقات أرباح تنتظر التسوية للتاجر' : 'مبالغ مستحقة لشركة الشحن (شحن مدفوع/مرتجعات)'}
+                                </p>
                             </CardContent>
                         </Card>
                         <Card className="border-none shadow-sm bg-primary/5">
@@ -240,6 +272,14 @@ const SellerProfilePage: React.FC = () => {
                     </CardContent>
                 </Card>
             </div>
+            
+            <ConfirmDialog 
+                open={isDeleteDialogOpen} 
+                onOpenChange={setIsDeleteDialogOpen} 
+                title="حذف المتجر نهائياً؟" 
+                description={`هل أنت متأكد من رغبتك في حذف المتجر "${seller.storeName}"؟ سيتم حذف حساب الدخول الخاص به وفصل ارتباطه بكافة الشحنات التاريخية. لا يمكن التراجع عن هذا الإجراء.`}
+                onConfirm={handleDelete}
+            />
         </motion.div>
     );
 };

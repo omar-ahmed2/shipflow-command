@@ -257,7 +257,11 @@ const ShipmentDetailsPage: React.FC = () => {
             <h3 className="font-semibold text-sm mb-4">{t.shipmentInfo}</h3>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div className="col-span-2 border-b pb-2 mb-2"><span className="text-muted-foreground block mb-1">المصدر / المتجر</span><p className="font-bold text-primary">{senderName}</p></div>
-              <div><span className="text-muted-foreground">{t.price}</span><p className="font-mono-nums font-bold">{formatCurrency(shipment.price + (shipment.shippingFee || 0))} {t.egp}</p></div>
+              <div className="col-span-2 grid grid-cols-3 gap-4 border-b pb-4 mb-2">
+                <div><span className="text-muted-foreground text-xs block mb-1">سعر الشحنة</span><p className="font-mono-nums font-bold text-sm">{formatCurrency(shipment.price)} {t.egp}</p></div>
+                <div><span className="text-muted-foreground text-xs block mb-1">سعر التوصيل</span><p className="font-mono-nums font-bold text-sm">{formatCurrency(shipment.shippingFee || 0)} {t.egp}</p></div>
+                <div className="bg-primary/5 p-2 rounded-lg"><span className="text-primary text-xs font-bold block mb-1">إجمالي السعر</span><p className="font-mono-nums font-bold text-sm text-primary">{formatCurrency(shipment.price + (shipment.shippingFee || 0))} {t.egp}</p></div>
+              </div>
               <div><span className="text-muted-foreground">{t.payment}</span><p>{shipment.paymentType === 'COD' ? t.cod : t.paid}</p></div>
               <div><span className="text-muted-foreground">{t.status}</span><div className="mt-1"><StatusBadge status={shipment.status} /></div></div>
               <div><span className="text-muted-foreground">{t.courier}</span><p>{courierName}</p></div>

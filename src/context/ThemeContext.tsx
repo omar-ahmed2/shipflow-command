@@ -12,24 +12,19 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [isDark, setIsDark] = useState(() => localStorage.getItem('shipflow_theme') === 'dark');
-  const [lang, setLangState] = useState<Lang>(() => (localStorage.getItem('shipflow_lang') as Lang) || 'ar');
+  const [isDark] = useState(true);
+  const [lang] = useState<Lang>('ar');
 
   const t = translations[lang];
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', isDark);
-    localStorage.setItem('shipflow_theme', isDark ? 'dark' : 'light');
-  }, [isDark]);
-
-  useEffect(() => {
+    document.documentElement.classList.add('dark');
     document.documentElement.dir = t.dir;
     document.documentElement.lang = t.lang;
-    localStorage.setItem('shipflow_lang', lang);
-  }, [lang, t]);
+  }, [t]);
 
-  const toggleTheme = () => setIsDark(p => !p);
-  const setLang = (l: Lang) => setLangState(l);
+  const toggleTheme = () => {};
+  const setLang = () => {};
 
   return (
     <ThemeContext.Provider value={{ isDark, toggleTheme, lang, setLang, t }}>

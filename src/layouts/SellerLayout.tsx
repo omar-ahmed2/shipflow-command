@@ -150,12 +150,6 @@ const SellerLayout: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="rounded-xl" onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')}>
-              <Globe className="w-4 h-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="rounded-xl" onClick={toggleTheme}>
-              {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </Button>
             <DropdownMenu open={notifOpen} onOpenChange={setNotifOpen}>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="rounded-xl relative">

@@ -39,9 +39,9 @@ const SettlementsPage: React.FC = () => {
     const courierData = useMemo(() => {
         return couriers.map(c => {
             const cs = shipments.filter(s => s.courierId === c.id);
-            const pendingShipments = cs.filter(s => s.status === 'delivered' && s.paymentType === 'COD' && !s.codCollected && s.price > 0);
+            const pendingShipments = cs.filter(s => s.status === 'delivered' && s.paymentType === 'COD' && !s.codCollected);
             const pendingAmount = pendingShipments.reduce((sum, s) => sum + s.price + (s.shippingFee || 0), 0);
-            const transitAmount = cs.filter(s => ['assigned', 'out_for_delivery'].includes(s.status)).reduce((sum, s) => sum + s.price + (s.shippingFee || 0), 0);
+            const transitAmount = cs.filter(s => ['assigned', 'out_for_delivery'].includes(s.status) && s.paymentType === 'COD').reduce((sum, s) => sum + s.price + (s.shippingFee || 0), 0);
             
             return {
                 ...c,
@@ -58,8 +58,19 @@ const SettlementsPage: React.FC = () => {
     const sellerData = useMemo(() => {
         return sellers.map(s => {
             const ss = shipments.filter(ship => ship.sellerId === s.id);
-            const pendingSettlements = ss.filter(ship => ship.status === 'delivered' && !ship.sellerSettled);
-            const pendingAmount = pendingSettlements.reduce((sum, ship) => sum + ship.price, 0);
+            const pendingSettlements = ss.filter(ship => ['delivered', 'returned'].includes(ship.status) && !ship.sellerSettled);
+            
+            const pendingAmount = pendingSettlements.reduce((sum, ship) => {
+                let amount = 0;
+                if (ship.status === 'delivered') {
+                    if (ship.paymentType === 'COD') amount = ship.price;
+                    else amount = -(ship.shippingFee || 0); // Paid online
+                } else if (ship.status === 'returned') {
+                    amount = -(ship.shippingFee || 0); // Returned
+                }
+                return sum + amount;
+            }, 0);
+
             const transitValue = ss.filter(ship => ['assigned', 'out_for_delivery', 'pending'].includes(ship.status)).reduce((sum, ship) => sum + ship.price, 0);
 
             return {
@@ -93,7 +104,7 @@ const SettlementsPage: React.FC = () => {
     };
 
     const handleSellerSettle = (seller: any) => {
-        if (seller.pendingAmount <= 0) return toast.info("لا توجد مستحقات للتاجر حالياً.");
+        if (seller.pendingAmount === 0 && seller.pendingSettlements.length === 0) return toast.info("لا توجد مستحقات للتاجر حالياً.");
 
         seller.pendingSettlements.forEach((s: Shipment) => {
             db.update('shipments', s.id, { sellerSettled: true });
@@ -108,7 +119,11 @@ const SettlementsPage: React.FC = () => {
             adminName: 'Admin',
         } as Settlement, 'STL');
 
-        toast.success(`تم تسوية ${formatCurrency(seller.pendingAmount)} ج لـ ${seller.storeName}`);
+        if (seller.pendingAmount >= 0) {
+            toast.success(`تم تسوية ${formatCurrency(seller.pendingAmount)} ج لـ ${seller.storeName}`);
+        } else {
+            toast.success(`تم تحصيل ${formatCurrency(Math.abs(seller.pendingAmount))} ج من ${seller.storeName} نظير شحنات مدفوعة/مرتجعة`);
+        }
         setRefresh(r => r + 1);
     };
 
@@ -211,13 +226,15 @@ const SettlementsPage: React.FC = () => {
                                         </div>
                                     </CardHeader>
                                     <CardContent className="space-y-4">
-                                        <div className="flex justify-between items-center p-3 bg-emerald-500/5 rounded-xl border border-emerald-500/10">
+                                        <div className={`flex justify-between items-center p-3 rounded-xl border ${s.pendingAmount >= 0 ? 'bg-emerald-500/5 border-emerald-500/10' : 'bg-destructive/5 border-destructive/10'}`}>
                                             <div className="flex items-center gap-2">
-                                                <Receipt className="w-4 h-4 text-emerald-600" />
-                                                <span className="text-xs font-bold text-emerald-600 uppercase">أرباح معلقة</span>
+                                                <Receipt className={`w-4 h-4 ${s.pendingAmount >= 0 ? 'text-emerald-600' : 'text-destructive'}`} />
+                                                <span className={`text-xs font-bold uppercase ${s.pendingAmount >= 0 ? 'text-emerald-600' : 'text-destructive'}`}>
+                                                    {s.pendingAmount >= 0 ? 'أرباح معلقة' : 'مستحقات على التاجر'}
+                                                </span>
                                             </div>
-                                            <span className="text-xl font-black font-mono-nums text-emerald-600">
-                                                {formatCurrency(s.pendingAmount)}
+                                            <span className={`text-xl font-black font-mono-nums ${s.pendingAmount >= 0 ? 'text-emerald-600' : 'text-destructive'}`}>
+                                                {formatCurrency(Math.abs(s.pendingAmount))}
                                             </span>
                                         </div>
                                         
@@ -227,12 +244,13 @@ const SettlementsPage: React.FC = () => {
                                         </div>
 
                                         <Button 
-                                            variant="secondary"
+                                            variant={s.pendingAmount >= 0 ? "secondary" : "destructive"}
                                             onClick={() => handleSellerSettle(s)}
-                                            disabled={s.pendingAmount === 0}
-                                            className="w-full rounded-xl gap-2 font-bold bg-emerald-600 text-white hover:bg-emerald-700"
+                                            disabled={s.pendingAmount === 0 && s.pendingSettlements.length === 0}
+                                            className={`w-full rounded-xl gap-2 font-bold ${s.pendingAmount >= 0 ? 'bg-emerald-600 text-white hover:bg-emerald-700' : ''}`}
                                         >
-                                            <CheckCircle className="w-4 h-4" /> تسوية الأرباح للتاجر
+                                            <CheckCircle className="w-4 h-4" /> 
+                                            {s.pendingAmount >= 0 ? 'تسوية الأرباح للتاجر' : 'تحصيل المديونية من التاجر'}
                                         </Button>
                                     </CardContent>
                                 </Card>

@@ -12,10 +12,10 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { pageVariants } from '@/animations/variants';
-import { Settings2, Lock, Bell, Palette, Database } from 'lucide-react';
+import { Settings2, Lock, Database } from 'lucide-react';
 
 const SettingsPage: React.FC = () => {
-  const { t, lang, setLang, isDark, toggleTheme } = useTheme();
+  const { t, lang, isDark } = useTheme();
   const { user } = useAuth();
   const [clearConfirm, setClearConfirm] = useState(false);
   const [companyName, setCompanyName] = useState(() => localStorage.getItem('shipflow_company') || 'ShipFlow');
@@ -27,7 +27,6 @@ const SettingsPage: React.FC = () => {
   const settingsTabs = [
     { id: 'general', label: t.general, icon: Settings2 },
     { id: 'security', label: t.security, icon: Lock },
-    { id: 'appearance', label: t.appearance, icon: Palette },
     { id: 'database', label: t.database, icon: Database },
   ];
 
@@ -69,13 +68,6 @@ const SettingsPage: React.FC = () => {
                 <Button onClick={saveCompany} className="rounded-xl">{t.save}</Button>
               </div>
             </div>
-            <div>
-              <Label className="text-sm font-medium">{t.language}</Label>
-              <div className="flex gap-2 mt-2">
-                <Button variant={lang === 'ar' ? 'default' : 'outline'} size="sm" className="rounded-xl" onClick={() => setLang('ar')}>العربية</Button>
-                <Button variant={lang === 'en' ? 'default' : 'outline'} size="sm" className="rounded-xl" onClick={() => setLang('en')}>English</Button>
-              </div>
-            </div>
           </div>
         );
       case 'security':
@@ -88,20 +80,7 @@ const SettingsPage: React.FC = () => {
             <Button onClick={changePassword} className="rounded-xl">{t.save}</Button>
           </div>
         );
-      case 'appearance':
-        return (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 rounded-xl border">
-              <div>
-                <p className="font-medium text-sm">{isDark ? 'Dark Mode' : 'Light Mode'}</p>
-                <p className="text-xs text-muted-foreground">Toggle between light and dark theme</p>
-              </div>
-              <Button variant="outline" size="sm" className="rounded-xl" onClick={toggleTheme}>
-                {isDark ? '☀️ Light' : '🌙 Dark'}
-              </Button>
-            </div>
-          </div>
-        );
+
       case 'database':
         return (
           <div className="space-y-4">

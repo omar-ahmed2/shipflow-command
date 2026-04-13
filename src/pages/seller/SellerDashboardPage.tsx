@@ -4,8 +4,9 @@ import { useTheme } from '@/context/ThemeContext';
 import { db } from '@/db';
 import type { Shipment, Seller } from '@/db/schema';
 import { motion } from 'framer-motion';
-import { Package, Truck, CheckCircle, AlertCircle, Clock } from 'lucide-react';
+import { Package, Truck, CheckCircle, AlertCircle, Clock, CircleDollarSign } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { formatCurrency } from '@/utils/formatters';
 
 const SellerDashboardPage = () => {
   const { user } = useAuth();
@@ -20,11 +21,12 @@ const SellerDashboardPage = () => {
     pending: shipments.filter(s => s.status === 'pending').length,
     delivered: shipments.filter(s => s.status === 'delivered').length,
     inTransit: shipments.filter(s => ['assigned', 'out_for_delivery'].includes(s.status)).length,
+    revenue: shipments.filter(s => s.status === 'delivered').reduce((sum, s) => sum + s.price, 0),
   };
 
   const statCards = [
+    { title: "إجمالي الأرباح المستلمة", value: formatCurrency(stats.revenue) + " ج.م", icon: CircleDollarSign, color: "text-emerald-500", bg: "bg-emerald-500/10" },
     { title: "إجمالي الشحنات", value: stats.total, icon: Package, color: "text-blue-500", bg: "bg-blue-500/10" },
-    { title: "قيد الانتظار", value: stats.pending, icon: Clock, color: "text-orange-500", bg: "bg-orange-500/10" },
     { title: "جاري التوصيل", value: stats.inTransit, icon: Truck, color: "text-purple-500", bg: "bg-purple-500/10" },
     { title: "تم التوصيل", value: stats.delivered, icon: CheckCircle, color: "text-green-500", bg: "bg-green-500/10" },
   ];

@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useTheme } from '@/context/ThemeContext';
 import { db } from '@/db';
 import { hashPassword } from '@/db/helpers';
-import type { User } from '@/db/schema';
+import type { User, Courier, Seller, Shipment } from '@/db/schema';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -27,10 +27,30 @@ const UsersPage: React.FC = () => {
 
   const handleDelete = () => {
     if (!deleteId) return;
+    const userToDelete = users.find(u => u.id === deleteId);
+    
+    if (userToDelete) {
+      if (userToDelete.role === 'courier') {
+        const courier = db.query<Courier>('couriers', c => c.userId === deleteId)[0];
+        if (courier) {
+          const courierShipments = db.getAll<Shipment>('shipments').filter(s => s.courierId === courier.id);
+          courierShipments.forEach(s => db.update('shipments', s.id, { courierId: undefined }));
+          db.delete('couriers', courier.id);
+        }
+      } else if (userToDelete.role === 'seller') {
+        const seller = db.query<Seller>('sellers', s => s.userId === deleteId)[0];
+        if (seller) {
+          const sellerShipments = db.getAll<Shipment>('shipments').filter(s => s.sellerId === seller.id);
+          sellerShipments.forEach(s => db.update('shipments', s.id, { sellerId: undefined }));
+          db.delete('sellers', seller.id);
+        }
+      }
+    }
+
     db.delete('users', deleteId);
     setDeleteId(null);
     setRefresh(r => r + 1);
-    toast.success(t.confirm);
+    toast.success('تم حذف المستخدم وكافة بياناته المرتبطة');
   };
 
   return (
@@ -50,7 +70,15 @@ const UsersPage: React.FC = () => {
             <tr key={u.id} className="border-b hover:bg-muted/30">
               <td className="p-3 font-medium">{u.name}</td>
               <td className="p-3 text-muted-foreground">{u.email}</td>
-              <td className="p-3"><span className={`px-2 py-0.5 rounded-full text-xs ${u.role === 'admin' ? 'bg-primary/10 text-primary' : 'bg-accent/10 text-accent'}`}>{u.role === 'admin' ? t.admin : t.courier}</span></td>
+              <td className="p-3">
+                <span className={`px-2 py-0.5 rounded-full text-xs ${
+                  u.role === 'admin' ? 'bg-primary/10 text-primary' : 
+                  u.role === 'seller' ? 'bg-emerald-500/10 text-emerald-500' : 
+                  'bg-amber-500/10 text-amber-500'
+                }`}>
+                  {u.role === 'admin' ? t.admin : u.role === 'seller' ? 'متجر' : t.courier}
+                </span>
+              </td>
               <td className="p-3"><span className={`px-2 py-0.5 rounded-full text-xs ${u.status === 'active' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>{u.status === 'active' ? t.active : t.inactive}</span></td>
               <td className="p-3 text-muted-foreground text-xs">{formatDate(u.createdAt, lang)}</td>
               <td className="p-3">

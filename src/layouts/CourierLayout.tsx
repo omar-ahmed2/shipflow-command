@@ -41,12 +41,6 @@ const CourierLayout: React.FC = () => {
           <span className="text-sm font-bold truncate max-w-[140px] sm:max-w-xs">{user?.name}</span>
         </div>
         <div className="flex items-center gap-0.5 sm:gap-1">
-          <Button variant="ghost" size="icon" className="rounded-xl h-8 w-8 sm:h-9 sm:w-9" onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')}>
-            <Globe className="w-4 h-4" />
-          </Button>
-          <Button variant="ghost" size="icon" className="rounded-xl h-8 w-8 sm:h-9 sm:w-9" onClick={toggleTheme}>
-            {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </Button>
           <DropdownMenu open={notifOpen} onOpenChange={setNotifOpen}>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-xl h-8 w-8 sm:h-9 sm:w-9 relative">

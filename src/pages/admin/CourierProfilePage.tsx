@@ -16,12 +16,15 @@ import {
   Wallet,
   ArrowLeft,
   Clock,
-  ExternalLink
+  ExternalLink,
+  Trash2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { motion } from 'framer-motion';
 import { pageVariants, cardVariants } from '@/animations/variants';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
+import { toast } from 'sonner';
 
 const CourierProfilePage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -29,6 +32,7 @@ const CourierProfilePage: React.FC = () => {
     const navigate = useNavigate();
 
     const courier = useMemo(() => db.getById<Courier>('couriers', id || ''), [id]);
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
     const userRole = useMemo(() => courier ? db.getById<User>('users', courier.userId) : null, [courier]);
     const shipments = useMemo(() => db.getAll<Shipment>('shipments').filter(s => s.courierId === id), [id]);
     const settlements = useMemo(() => db.getAll<Settlement>('settlements').filter(s => s.courierId === id).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [id]);
@@ -55,6 +59,21 @@ const CourierProfilePage: React.FC = () => {
         goodsInTransit: shipments.filter(s => ['assigned', 'out_for_delivery'].includes(s.status)).reduce((sum, s) => sum + s.price + (s.shippingFee || 0), 0),
     };
 
+    const handleDelete = () => {
+        if (!courier) return;
+        
+        // Clear shipments assignment
+        const courierShipments = db.getAll<Shipment>('shipments').filter(s => s.courierId === id);
+        courierShipments.forEach(s => db.update('shipments', s.id, { courierId: undefined }));
+        
+        // Delete records
+        if (courier.userId) db.delete('users', courier.userId);
+        db.delete('couriers', courier.id);
+        
+        toast.success('تم حذف المندوب وكل بياناته بنجاح');
+        navigate('/couriers');
+    };
+
     return (
         <motion.div 
             variants={pageVariants} 
@@ -62,16 +81,21 @@ const CourierProfilePage: React.FC = () => {
             animate="animate" 
             className="space-y-6"
         >
-            <div className="flex items-center gap-4">
-                <Button variant="ghost" size="icon" onClick={() => navigate('/couriers')} className="rounded-full">
-                    <ArrowLeft className="w-5 h-5 rtl:rotate-180" />
-                </Button>
-                <div>
-                    <h2 className="text-2xl font-bold">{courier.name}</h2>
-                    <p className="text-muted-foreground text-sm flex items-center gap-1">
-                        <Truck className="w-3 h-3" /> {t[courier.status]} • {courier.zone}
-                    </p>
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <Button variant="ghost" size="icon" onClick={() => navigate('/couriers')} className="rounded-full">
+                        <ArrowLeft className="w-5 h-5 rtl:rotate-180" />
+                    </Button>
+                    <div>
+                        <h2 className="text-2xl font-bold">{courier.name}</h2>
+                        <p className="text-muted-foreground text-sm flex items-center gap-1">
+                            <Truck className="w-3 h-3" /> {t[courier.status]} • {courier.zone}
+                        </p>
+                    </div>
                 </div>
+                <Button variant="destructive" size="sm" onClick={() => setIsDeleteDialogOpen(true)} className="rounded-xl">
+                    <Trash2 className="w-4 h-4 me-2" /> حذف المندوب
+                </Button>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -242,6 +266,14 @@ const CourierProfilePage: React.FC = () => {
                     </CardContent>
                 </Card>
             </div>
+            
+            <ConfirmDialog 
+                open={isDeleteDialogOpen} 
+                onOpenChange={setIsDeleteDialogOpen} 
+                title="حذف المندوب نهائياً؟" 
+                description={`هل أنت متأكد من رغبتك في حذف المندوب "${courier.name}"؟ سيتم حذف حساب الدخول الخاص به وإلغاء تعيينه من كافة الشحنات. لا يمكن التراجع عن هذا الإجراء.`}
+                onConfirm={handleDelete}
+            />
         </motion.div>
     );
 };

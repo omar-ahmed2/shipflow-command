@@ -3,7 +3,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { db } from '@/db';
 import type { Shipment, Courier } from '@/db/schema';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { Download, FileText } from 'lucide-react';
+import { Download, FileText, CircleDollarSign, TrendingUp, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, ComposedChart, Line } from 'recharts';
@@ -87,6 +87,12 @@ const ReportsPage: React.FC = () => {
     return { name: c.name, delivered: del, returned: ret, total: cs.length, rate: cs.length > 0 ? Math.round((del / cs.length) * 100) : 0 };
   });
 
+  const financialStats = {
+    companyProfit: shipments.filter(s => s.status === 'delivered').reduce((sum, s) => sum + (s.shippingFee || 0), 0),
+    sellersProfit: shipments.filter(s => s.status === 'delivered').reduce((sum, s) => sum + s.price, 0),
+    totalVolume: shipments.filter(s => s.status === 'delivered').reduce((sum, s) => sum + s.price + (s.shippingFee || 0), 0),
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
@@ -101,6 +107,35 @@ const ReportsPage: React.FC = () => {
         <EmptyState title={t.noDataYet} />
       ) : (
         <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="admin-card p-4 border-none bg-emerald-500/10">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-emerald-500/20 rounded-lg text-emerald-600"><CircleDollarSign className="w-5 h-5" /></div>
+                <div>
+                  <p className="text-xs text-emerald-700 font-bold">أرباح شركة الشحن</p>
+                  <p className="text-xl font-black text-emerald-600 font-mono-nums">{formatCurrency(financialStats.companyProfit)} ج</p>
+                </div>
+              </div>
+            </div>
+            <div className="admin-card p-4 border-none bg-blue-500/10">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-500/20 rounded-lg text-blue-600"><Wallet className="w-5 h-5" /></div>
+                <div>
+                  <p className="text-xs text-blue-700 font-bold">إجمالي أرباح المتاجر</p>
+                  <p className="text-xl font-black text-blue-600 font-mono-nums">{formatCurrency(financialStats.sellersProfit)} ج</p>
+                </div>
+              </div>
+            </div>
+            <div className="admin-card p-4 border-none bg-primary/10">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary/20 rounded-lg text-primary"><TrendingUp className="w-5 h-5" /></div>
+                <div>
+                  <p className="text-xs text-primary-700 font-bold">حجم التداول الكلي</p>
+                  <p className="text-xl font-black text-primary font-mono-nums">{formatCurrency(financialStats.totalVolume)} ج</p>
+                </div>
+              </div>
+            </div>
+          </div>
           <Tabs value={period} onValueChange={setPeriod}>
             <TabsList className="rounded-xl">
               <TabsTrigger value="daily" className="rounded-lg">{t.daily}</TabsTrigger>

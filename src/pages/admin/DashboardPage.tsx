@@ -2,10 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/context/ThemeContext';
 import { db } from '@/db';
-import type { Shipment, Courier } from '@/db/schema';
+import type { Shipment, Courier, Settlement } from '@/db/schema';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { Package, Calendar, Truck, CheckCircle, XCircle, Wallet, Plus, CircleDollarSign, Landmark } from 'lucide-react';
+import { Package, Calendar, Truck, CheckCircle, XCircle, Wallet, Plus, CircleDollarSign, Landmark, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AreaChart, Area, PieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 import { formatCurrency, formatDate, isToday } from '@/utils/formatters';
@@ -54,17 +54,25 @@ const DashboardPage: React.FC = () => {
   const codAmount = pendingCod.reduce((s, sh) => s + sh.price + (sh.shippingFee || 0), 0);
   
   const collectedCodAmount = shipments.filter(s => s.paymentType === 'COD' && s.codCollected && s.status === 'delivered').reduce((s, sh) => s + sh.price + (sh.shippingFee || 0), 0);
-  const totalRevenue = shipments.filter(s => s.status === 'delivered').reduce((s, sh) => s + sh.price + (sh.shippingFee || 0), 0);
+  
+  // Real Safe Balance Calculation based on Settlements
+  const settlements = db.getAll<Settlement>('settlements');
+  const courierCollections = settlements.filter(s => s.courierId).reduce((sum, s) => sum + s.amount, 0);
+  const sellerPayments = settlements.filter(s => s.sellerId).reduce((sum, s) => sum + s.amount, 0);
+  const netSafeBalance = courierCollections - sellerPayments;
+
+  const shippingCompanyProfit = shipments.filter(s => s.status === 'delivered').reduce((s, sh) => s + (sh.shippingFee || 0), 0);
+  const sellersProfit = shipments.filter(s => s.status === 'delivered').reduce((s, sh) => s + sh.price, 0);
 
   const kpis = [
     { icon: Package, label: t.totalShipments, value: shipments.length, color: '#4F8EF7', isAmount: false },
+    { icon: CircleDollarSign, label: 'أرباح شركة الشحن', value: shippingCompanyProfit, color: '#10B981', isAmount: true },
+    { icon: Landmark, label: 'إجمالي أرباح المتاجر', value: sellersProfit, color: '#06B6D4', isAmount: true },
+    { icon: Wallet, label: 'المديونية (عند المناديب)', value: codAmount, color: '#A78BFA', isAmount: true },
+    { icon: Landmark, label: 'رصيد الخزنة المتاح', value: netSafeBalance, color: '#059669', isAmount: true, description: 'صافي الربح + مستحقات المتاجر التي لم تدفع بعد' },
+    { icon: CheckCircle, label: t.delivered, value: deliveredAll.length, color: '#10B981', isAmount: false },
     { icon: Calendar, label: t.todayShipments, value: todayShipments.length, color: '#06B6D4', isAmount: false },
     { icon: Truck, label: t.onTheWay, value: onWay.length, color: '#F59E0B', isAmount: false, pulse: true },
-    { icon: CheckCircle, label: t.delivered, value: deliveredAll.length, color: '#10B981', isAmount: false },
-    { icon: XCircle, label: t.returnedCancelled, value: retCan.length, color: '#F87171', isAmount: false },
-    { icon: Wallet, label: 'المديونية (عند المناديب)', value: codAmount, color: '#A78BFA', isAmount: true },
-    { icon: Landmark, label: 'إجمالي المحصل بالخزنة', value: collectedCodAmount, color: '#059669', isAmount: true },
-    { icon: CircleDollarSign, label: 'إجمالي قيمة المبيعات', value: totalRevenue, color: '#2563EB', isAmount: true },
   ];
 
   const statusData = [
