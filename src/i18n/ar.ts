@@ -15,8 +15,8 @@ export const ar = {
   testCredentials: "بيانات الاختبار",
   adminCredentials: "المشرف: omar@gmail.com / omar2004",
   // System
-  systemName: "ShipFlow",
-  systemDesc: "نظام إدارة الشحن الداخلي",
+  systemName: "ELMona Shipping",
+  systemDesc: "نظام إدارة الشحن والخدمات اللوجستية ",
   // Sidebar
   dashboard: "لوحة التحكم",
   shipments: "الشحنات",

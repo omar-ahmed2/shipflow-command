@@ -18,7 +18,7 @@ const SettingsPage: React.FC = () => {
   const { t, lang, isDark } = useTheme();
   const { user } = useAuth();
   const [clearConfirm, setClearConfirm] = useState(false);
-  const [companyName, setCompanyName] = useState(() => localStorage.getItem('shipflow_company') || 'ShipFlow');
+  const [companyName, setCompanyName] = useState(() => localStorage.getItem('shipflow_company') || 'ELMona Shipping');
   const [curPwd, setCurPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
   const [confPwd, setConfPwd] = useState('');

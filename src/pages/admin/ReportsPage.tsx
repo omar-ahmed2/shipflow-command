@@ -61,7 +61,7 @@ const ReportsPage: React.FC = () => {
     const { default: autoTable } = await import('jspdf-autotable');
     const doc = new jsPDF();
     doc.setFontSize(16);
-    doc.text('ShipFlow Report', 14, 20);
+    doc.text('ELMona Shipping Report', 14, 20);
     doc.setFontSize(10);
     doc.text(new Date().toLocaleDateString(), 14, 28);
 

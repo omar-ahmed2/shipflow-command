@@ -95,17 +95,28 @@ const LoginPage: React.FC = () => {
       >
         {/* Logo */}
         <motion.div
-          className="text-center mb-8"
-          initial={{ opacity: 0, scale: 0.9 }}
+          className="text-center mb-12"
+          initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.15, duration: 0.4 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
         >
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 mb-4 relative">
-            <Truck className="w-8 h-8 text-primary" />
-            <div className="absolute inset-0 rounded-2xl bg-primary/5 animate-ping" style={{ animationDuration: '3s' }} />
-          </div>
-          <h1 className="text-2xl font-bold">{t.systemName}</h1>
-          <p className="text-sm text-muted-foreground">{t.systemDesc}</p>
+
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <h1 className="text-5xl font-black tracking-tighter text-foreground leading-none">
+              ELMona
+            </h1>
+            <div className="flex items-center justify-center gap-3 mt-2">
+              <div className="h-[2px] w-8 bg-gradient-to-r from-transparent to-primary/50" />
+              <span className="text-primary font-black text-sm uppercase tracking-[0.5em]">
+                Shipping
+              </span>
+              <div className="h-[2px] w-8 bg-gradient-to-l from-transparent to-primary/50" />
+            </div>
+          </motion.div>
         </motion.div>
 
         {/* Card */}

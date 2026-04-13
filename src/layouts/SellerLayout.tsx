@@ -69,15 +69,34 @@ const SellerLayout: React.FC = () => {
           borderInlineEnd: '1px solid hsl(var(--sidebar-border))',
         }}>
         {/* Logo */}
-        <div className="h-16 flex items-center gap-3 px-4 border-b border-sidebar-border">
-          <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center flex-shrink-0 relative">
-            <Store className="w-4 h-4 text-primary" />
-            <div className="absolute inset-0 rounded-lg bg-primary/10 blur-sm" />
+        <div className="py-8 flex flex-col items-center justify-center gap-4 border-b border-sidebar-border/20">
+          <div className="relative group">
+            <div className="absolute inset-0 rounded-full bg-primary/20 blur-2xl group-hover:bg-primary/40 transition-all duration-700" />
+            <div className="w-20 h-20 rounded-full flex items-center justify-center relative z-10 overflow-hidden">
+              <img 
+                src="/ELMona Shipping.jpeg" 
+                alt="ELMona Logo" 
+                className="w-18 h-18 object-contain transition-transform duration-500 group-hover:scale-110" 
+                style={{ mixBlendMode: 'multiply' }}
+              />
+            </div>
           </div>
           {sidebarOpen && (
-            <motion.div className="overflow-hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <h1 className="font-bold text-sm text-sidebar-foreground">{t.systemName || "ShipFlow"}</h1>
-              <p className="text-[10px] text-sidebar-foreground/50">لوحة التاجر</p>
+            <motion.div 
+              className="text-center space-y-1" 
+              initial={{ opacity: 0, scale: 0.95 }} 
+              animate={{ opacity: 1, scale: 1 }}
+            >
+              <h1 className="font-black text-2xl text-sidebar-foreground tracking-tighter leading-none">
+                ELMona
+              </h1>
+              <div className="flex items-center justify-center gap-2">
+                <div className="h-px w-4 bg-primary/50" />
+                <span className="text-primary font-bold text-[10px] uppercase tracking-[0.3em]">
+                  Shipping
+                </span>
+                <div className="h-px w-4 bg-primary/50" />
+              </div>
             </motion.div>
           )}
         </div>
