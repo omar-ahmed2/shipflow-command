@@ -128,7 +128,7 @@ const SettlementsPage: React.FC = () => {
     };
 
     return (
-        <motion.div variants={pageVariants} initial="initial" animate="animate" className="space-y-6">
+        <motion.div variants={pageVariants} initial="initial" animate="animate" dir="rtl" className="space-y-6 text-right">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h2 className="text-2xl font-bold">{t.settlementsHub}</h2>
@@ -140,7 +140,8 @@ const SettlementsPage: React.FC = () => {
                         placeholder="بحث بالاسم..." 
                         value={search} 
                         onChange={e => setSearch(e.target.value)} 
-                        className="ps-9 rounded-xl shadow-sm"
+                        className="ps-9 rounded-xl shadow-sm text-right"
+                        dir="rtl"
                     />
                 </div>
             </div>
@@ -163,11 +164,11 @@ const SettlementsPage: React.FC = () => {
                                     <div className="h-2 bg-primary/20 group-hover:bg-primary/40 transition-colors" />
                                     <CardHeader className="pb-3">
                                         <div className="flex justify-between items-start">
-                                            <div onClick={() => navigate(`/couriers/${c.id}`)} className="cursor-pointer hover:underline">
+                                            <div onClick={() => navigate(`/couriers/${c.id}`)} className="cursor-pointer hover:underline text-start">
                                                 <CardTitle className="text-lg">{c.name}</CardTitle>
                                                 <p className="text-xs text-muted-foreground">{c.phone} • {c.zone}</p>
                                             </div>
-                                            <div className="p-2 bg-primary/10 rounded-full">
+                                            <div className="p-2 bg-primary/10 rounded-full flex-shrink-0">
                                                 <Truck className="w-5 h-5 text-primary" />
                                             </div>
                                         </div>
@@ -216,11 +217,11 @@ const SettlementsPage: React.FC = () => {
                                     <div className="h-2 bg-emerald-500/20 group-hover:bg-emerald-500/40 transition-colors" />
                                     <CardHeader className="pb-3">
                                         <div className="flex justify-between items-start">
-                                            <div onClick={() => navigate(`/sellers/${s.id}`)} className="cursor-pointer hover:underline">
+                                            <div onClick={() => navigate(`/sellers/${s.id}`)} className="cursor-pointer hover:underline text-start">
                                                 <CardTitle className="text-lg">{s.storeName}</CardTitle>
                                                 <p className="text-xs text-muted-foreground">{s.phone} • {s.address || '—'}</p>
                                             </div>
-                                            <div className="p-2 bg-emerald-500/10 rounded-full">
+                                            <div className="p-2 bg-emerald-500/10 rounded-full flex-shrink-0">
                                                 <Store className="w-5 h-5 text-emerald-600" />
                                             </div>
                                         </div>

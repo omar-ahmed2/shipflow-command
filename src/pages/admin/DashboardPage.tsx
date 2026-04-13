@@ -113,20 +113,20 @@ const DashboardPage: React.FC = () => {
         {kpis.map((kpi, i) => (
           <motion.div key={i} custom={i} variants={cardVariants} initial="initial" animate="animate"
             className="admin-card p-4 relative overflow-hidden">
-            <div className="absolute top-0 end-0 w-20 h-20 rounded-full opacity-5"
+            <div className="absolute top-0 start-0 w-20 h-20 rounded-full opacity-5"
               style={{ background: kpi.color, filter: 'blur(20px)' }} />
             <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
               style={{ background: `${kpi.color}15` }}>
               <kpi.icon className="w-5 h-5" style={{ color: kpi.color }} />
             </div>
-            <p className="text-2xl font-bold font-mono-nums">
+            <p className="text-2xl font-bold font-mono-nums text-start">
               {kpi.isAmount ? (
                 <><CountUp end={kpi.value as number} duration={1.5} separator="," /> <span className="text-sm">{t.egp}</span></>
               ) : (
                 <CountUp end={kpi.value as number} duration={1} />
               )}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">{kpi.label}</p>
+            <p className="text-xs text-muted-foreground mt-1 text-start">{kpi.label}</p>
             <div className="absolute bottom-0 start-0 end-0 h-px"
               style={{ background: `linear-gradient(90deg, ${kpi.color}50, transparent)` }} />
           </motion.div>

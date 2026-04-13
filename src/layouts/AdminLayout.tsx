@@ -59,7 +59,7 @@ const AdminLayout: React.FC = () => {
   const handleLogout = () => { logout(); navigate('/login'); };
 
   return (
-    <div className="min-h-screen flex bg-background">
+    <div className="min-h-screen flex bg-background" dir="rtl">
       {/* Mobile Backdrop */}
       {sidebarOpen && (
         <div 
@@ -100,7 +100,7 @@ const AdminLayout: React.FC = () => {
                 variants={menuItemVariants}
                 initial="initial"
                 animate="animate"
-                whileHover={{ x: 2 }}
+                whileHover={{ x: lang === 'ar' ? -2 : 2 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={() => navigate(item.path)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all relative
@@ -191,7 +191,7 @@ const AdminLayout: React.FC = () => {
         </header>
 
         {/* Content */}
-        <main className="flex-1 p-6">
+        <main className="flex-1 p-6 overflow-x-hidden">
           <Outlet />
         </main>
       </div>

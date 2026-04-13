@@ -13,14 +13,15 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isDark] = useState(true);
-  const [lang] = useState<Lang>('ar');
+  const [lang, setLangState] = useState<Lang>('ar');
 
   const t = translations[lang];
 
   useEffect(() => {
-    document.documentElement.classList.add('dark');
-    document.documentElement.dir = t.dir;
-    document.documentElement.lang = t.lang;
+    const root = document.documentElement;
+    root.classList.add('dark');
+    root.dir = t.dir;
+    root.lang = t.lang;
   }, [t]);
 
   const toggleTheme = () => {};
