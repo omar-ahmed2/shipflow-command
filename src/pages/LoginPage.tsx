@@ -63,20 +63,18 @@ const LoginPage: React.FC = () => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    await new Promise(r => setTimeout(r, 800));
-    const success = login(email, password);
-    setLoading(false);
+    
+    const { success, error: loginError } = await login(email, password);
+    
     if (!success) {
-      setError(t.loginError);
+      setError(loginError || t.loginError);
+      setLoading(false);
       return;
     }
-    const users = JSON.parse(localStorage.getItem('shipflow_users') || '[]');
-    const user = users.find((u: any) => u.email === email);
-    if (user?.role === 'courier') {
-      navigate('/courier');
-    } else {
-      navigate('/dashboard');
-    }
+    
+    // Redirect logic moved to App.tsx auth state check, 
+    // but we can also set success state or wait for profile
+    setLoading(false);
   };
 
   return (
@@ -166,10 +164,6 @@ const LoginPage: React.FC = () => {
               </button>
             </div>
 
-            <div className="flex items-center gap-2">
-              <Checkbox id="remember" checked={remember} onCheckedChange={(c) => setRemember(!!c)} />
-              <label htmlFor="remember" className="text-sm text-muted-foreground cursor-pointer">{t.rememberMe}</label>
-            </div>
 
             {error && (
               <motion.p

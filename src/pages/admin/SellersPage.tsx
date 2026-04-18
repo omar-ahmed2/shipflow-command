@@ -1,10 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { useTheme } from '@/context/ThemeContext';
-import { db } from '@/db';
-import { generateId, hashPassword, now } from '@/db/helpers';
-import type { Seller, User, Shipment } from '@/db/schema';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api';
+import { adminService } from '@/services/adminService';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { Plus, Search, Store, Grid3X3, List, ExternalLink, Package } from 'lucide-react';
+import { Plus, Search, Store, Grid3X3, List, ExternalLink, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,40 +16,51 @@ import { formatCurrency } from '@/utils/formatters';
 const SellersPage: React.FC = () => {
   const { t } = useTheme();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [modalOpen, setModalOpen] = useState(false);
-  const [refresh, setRefresh] = useState(0);
   const [search, setSearch] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
 
-  const sellers = useMemo(() => db.getAll<Seller>('sellers'), [refresh]);
-  const shipments = useMemo(() => db.getAll<Shipment>('shipments'), [refresh]);
+  // Queries
+  const { data: sellers = [], isLoading: sellerLoading } = useQuery({ queryKey: ['sellers'], queryFn: api.sellers.getAll });
+  const { data: shipments = [], isLoading: shipLoading } = useQuery({ queryKey: ['shipments'], queryFn: api.shipments.getAll });
+
+  const isLoading = sellerLoading || shipLoading;
 
   const filtered = sellers.filter(s => !search || s.storeName.toLowerCase().includes(search.toLowerCase()) || s.phone.includes(search));
 
   const [form, setForm] = useState({ storeName: '', phone: '', email: '', password: '', address: '' });
   const updateForm = (k: string, v: string | number) => setForm(prev => ({ ...prev, [k]: v }));
 
-  const handleCreate = () => {
-    if (!form.storeName || !form.phone || !form.email || !form.password) return;
+  const handleCreate = async () => {
+    if (!form.storeName || !form.phone || !form.email || !form.password) {
+      toast.error('يرجى ملء كافة الحقول المطلوبة');
+      return;
+    }
 
-    // Create User
-    const userId = generateId('USR');
-    db.create<User>('users', {
-      id: userId, name: form.storeName, email: form.email,
-      passwordHash: hashPassword(form.password), role: 'seller',
-      phone: form.phone, status: 'active', createdAt: now(), updatedAt: now(),
-    } as User, 'USR');
+    setIsCreating(true);
+    try {
+      await adminService.createUser({
+        email: form.email,
+        password: form.password,
+        name: form.storeName,
+        role: 'seller',
+        phone: form.phone,
+        storeName: form.storeName,
+        address: form.address
+      });
 
-    // Create Seller
-    db.create<Seller>('sellers', {
-      id: generateId('SEL'), userId, storeName: form.storeName, phone: form.phone,
-      address: form.address, joinDate: now(), status: 'active',
-    } as Seller, 'SEL');
-
-    toast.success(`${t.sellerCreated || 'تم إضافة المتجر'}: ${form.storeName}`);
-    setForm({ storeName: '', phone: '', email: '', password: '', address: '' });
-    setModalOpen(false);
-    setRefresh(r => r + 1);
+      toast.success(`${t.sellerCreated || 'تم إضافة المتجر'}: ${form.storeName}`);
+      queryClient.invalidateQueries({ queryKey: ['sellers'] });
+      setForm({ storeName: '', phone: '', email: '', password: '', address: '' });
+      setModalOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || 'حدث خطأ أثناء إنشاء الحساب');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const getSellerStats = (sellerId: string) => {
@@ -71,7 +82,13 @@ const SellersPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4 animate-fade-in">
+    <div className="space-y-4 animate-fade-in relative">
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-20 min-h-[400px]">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">{t.sellers || 'المتاجر'} ({sellers.length})</h2>
         <div className="flex items-center gap-2">
@@ -92,7 +109,7 @@ const SellersPage: React.FC = () => {
         <Input placeholder={t.search} value={search} onChange={e => setSearch(e.target.value)} className="ps-9 rounded-xl" />
       </div>
 
-      {filtered.length === 0 ? (
+      {filtered.length === 0 && !isLoading ? (
         <EmptyState icon={<Store className="w-8 h-8 text-muted-foreground" />} title="لا توجد متاجر" actionLabel={t.addSeller || 'إضافة متجر'} onAction={() => setModalOpen(true)} />
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -187,17 +204,20 @@ const SellersPage: React.FC = () => {
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>{t.addSeller || 'إضافة متجر'}</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <div><Label>{t.sellerName || 'اسم المتجر'} *</Label><Input value={form.storeName} onChange={e => updateForm('storeName', e.target.value)} className="rounded-xl mt-1" /></div>
-            <div><Label>{t.phone} *</Label><Input value={form.phone} onChange={e => updateForm('phone', e.target.value)} className="rounded-xl mt-1" /></div>
-            <div><Label>{t.address}</Label><Input value={form.address} onChange={e => updateForm('address', e.target.value)} className="rounded-xl mt-1" /></div>
+            <div><Label>{t.sellerName || 'اسم المتجر'} *</Label><Input value={form.storeName} onChange={e => updateForm('storeName', e.target.value)} disabled={isCreating} className="rounded-xl mt-1" /></div>
+            <div><Label>{t.phone} *</Label><Input value={form.phone} onChange={e => updateForm('phone', e.target.value)} disabled={isCreating} className="rounded-xl mt-1" /></div>
+            <div><Label>{t.address}</Label><Input value={form.address} onChange={e => updateForm('address', e.target.value)} disabled={isCreating} className="rounded-xl mt-1" /></div>
             <hr />
             <p className="text-xs text-muted-foreground">{t.loginDesc}</p>
-            <div><Label>{t.email} *</Label><Input type="email" value={form.email} onChange={e => updateForm('email', e.target.value)} className="rounded-xl mt-1" /></div>
-            <div><Label>{t.password} *</Label><Input type="password" value={form.password} onChange={e => updateForm('password', e.target.value)} className="rounded-xl mt-1" /></div>
+            <div><Label>{t.email} *</Label><Input type="email" value={form.email} onChange={e => updateForm('email', e.target.value)} disabled={isCreating} className="rounded-xl mt-1" /></div>
+            <div><Label>{t.password} *</Label><Input type="password" value={form.password} onChange={e => updateForm('password', e.target.value)} disabled={isCreating} className="rounded-xl mt-1" /></div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setModalOpen(false)}>{t.cancel}</Button>
-            <Button onClick={handleCreate} className="rounded-xl">{t.addSeller || 'إضافة متجر'}</Button>
+            <Button variant="ghost" onClick={() => setModalOpen(false)} disabled={isCreating}>{t.cancel}</Button>
+            <Button onClick={handleCreate} disabled={isCreating} className="rounded-xl">
+              {isCreating ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : <Plus className="w-4 h-4 me-2" />}
+              {t.addSeller || 'إضافة متجر'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

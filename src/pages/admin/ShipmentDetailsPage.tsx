@@ -1,10 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
-import { db } from '@/db';
-import { generateId, now } from '@/db/helpers';
-import type { Shipment, ShipmentEvent, Courier, ShipmentStatus, Notification, Seller } from '@/db/schema';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api';
+import { now } from '@/db/helpers';
+import type { ShipmentStatus } from '@/db/schema';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -24,19 +25,44 @@ const ShipmentDetailsPage: React.FC = () => {
   const { t, lang } = useTheme();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [refresh, setRefresh] = useState(0);
+  const queryClient = useQueryClient();
+  
   const [newStatus, setNewStatus] = useState<string>('');
   const [note, setNote] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
 
-  const shipment = useMemo(() => db.getById<Shipment>('shipments', id || ''), [id, refresh]);
-  const events = useMemo(() =>
-    db.query<ShipmentEvent>('shipmentEvents', e => e.shipmentId === id)
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
-    [id, refresh]);
-  const couriers = useMemo(() => db.getAll<Courier>('couriers'), []);
-  const sellers = useMemo(() => db.getAll<Seller>('sellers'), []);
+  // Queries
+  const { data: shipment, isLoading: shipmentLoading } = useQuery({
+    queryKey: ['shipment', id],
+    queryFn: () => api.shipments.getById(id!),
+    enabled: !!id
+  });
 
-  if (!shipment) return <div className="p-8 text-center text-muted-foreground">Not found</div>;
+  const { data: events = [], isLoading: eventsLoading } = useQuery({
+    queryKey: ['shipment-events', id],
+    queryFn: () => api.shipments.getEvents(id!),
+    enabled: !!id
+  });
+
+  const { data: couriers = [] } = useQuery({
+    queryKey: ['couriers'],
+    queryFn: api.couriers.getAll
+  });
+
+  const { data: sellers = [] } = useQuery({
+    queryKey: ['sellers'],
+    queryFn: api.sellers.getAll
+  });
+
+  if (shipmentLoading) return (
+    <div className="flex flex-col items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
+        <p className="text-muted-foreground">جاري تحميل تفاصيل الشحنة...</p>
+    </div>
+  );
+
+  if (!shipment) return <div className="p-8 text-center text-muted-foreground">الشحنة غير موجودة</div>;
 
   const courierName = shipment.courierId ? couriers.find(c => c.id === shipment.courierId)?.name || '—' : '—';
   const seller = shipment.sellerId ? sellers.find(s => s.id === shipment.sellerId) : null;
@@ -52,83 +78,98 @@ const ShipmentDetailsPage: React.FC = () => {
     pending: 'قيد الانتظار',
   };
 
-  const handleUpdateStatus = () => {
+  const handleUpdateStatus = async () => {
     if (!newStatus) return;
-    const updates: Record<string, any> = { status: newStatus, updatedAt: now() };
-    if (newStatus === 'delivered') updates.deliveredAt = now();
-    db.update('shipments', shipment.id, updates);
+    setIsUpdating(true);
+    
+    try {
+      const updates: Record<string, any> = { status: newStatus, updatedAt: now() };
+      if (newStatus === 'delivered') updates.deliveredAt = now();
+      
+      await api.shipments.update(shipment.id, updates);
 
-    db.create<ShipmentEvent>('shipmentEvents', {
-      id: generateId('EVT'), shipmentId: shipment.id, status: newStatus as ShipmentStatus,
-      note: note || undefined, actor: user?.name || '', actorRole: 'admin', timestamp: now(),
-    } as ShipmentEvent, 'EVT');
+      await api.shipments.addEvent({
+        shipmentId: shipment.id, 
+        status: newStatus as ShipmentStatus,
+        notes: note || undefined, 
+        actor: user?.id || null, 
+        actorRole: 'admin'
+      });
 
-    // Notify seller if this shipment belongs to one
-    if (seller?.userId) {
-      db.create<Notification>('notifications', {
-        id: generateId('NOT'),
-        targetRole: 'seller',
-        targetUserId: seller.userId,
-        type: newStatus === 'delivered' ? 'success' : newStatus === 'returned' ? 'warning' : 'info',
-        title: `تحديث شحنة #${shipment.trackingId}`,
-        message: `شحنتك إلى ${shipment.customerName} — ${STATUS_LABELS_AR[newStatus] || newStatus}`,
-        read: false,
-        createdAt: now(),
-      } as Notification, 'NOT');
+      // Notify seller if this shipment belongs to one
+      if (seller?.userId) {
+        await api.notifications.create({
+          targetRole: 'seller',
+          targetUserId: seller.userId,
+          type: newStatus === 'delivered' ? 'success' : newStatus === 'returned' ? 'warning' : 'info',
+          title: `تحديث شحنة #${shipment.trackingId}`,
+          message: `شحنتك إلى ${shipment.customerName} — ${STATUS_LABELS_AR[newStatus] || newStatus}`
+        });
+      }
+
+      toast.success(t.statusUpdated);
+      setNewStatus('');
+      setNote('');
+      queryClient.invalidateQueries({ queryKey: ['shipment', id] });
+      queryClient.invalidateQueries({ queryKey: ['shipment-events', id] });
+    } catch (err) {
+      toast.error('حدث خطأ أثناء تحديث الحالة');
+    } finally {
+      setIsUpdating(false);
     }
-
-    toast.success(t.statusUpdated);
-    setNewStatus('');
-    setNote('');
-    setRefresh(r => r + 1);
-
   };
 
-  const handleAssignCourier = (selectedCourierId: string) => {
-    db.update('shipments', shipment.id, { 
-      courierId: selectedCourierId, 
-      status: 'assigned', 
-      updatedAt: now() 
-    });
+  const handleAssignCourier = async (selectedCourierId: string) => {
+    setIsUpdating(true);
+    try {
+      await api.shipments.update(shipment.id, { 
+        courierId: selectedCourierId, 
+        status: 'assigned', 
+        updatedAt: now() 
+      });
 
-    const c = couriers.find(x => x.id === selectedCourierId);
+      const c = couriers.find(x => x.id === selectedCourierId);
 
-    db.create<ShipmentEvent>('shipmentEvents', {
-      id: generateId('EVT'), 
-      shipmentId: shipment.id, 
-      status: 'assigned',
-      note: `تم تعيين المندوب: ${c?.name}`, 
-      actor: user?.name || '', 
-      actorRole: 'admin', 
-      timestamp: now(),
-    } as ShipmentEvent, 'EVT');
+      await api.shipments.addEvent({ 
+        shipmentId: shipment.id, 
+        status: 'assigned',
+        notes: `تم تعيين المندوب: ${c?.name}`, 
+        actor: user?.id || null, 
+        actorRole: 'admin'
+      });
 
-    if (c?.userId) {
-      db.create<Notification>('notifications', {
-        targetRole: 'courier',
-        targetUserId: c.userId,
-        type: 'info',
-        title: 'شحنة جديدة',
-        message: `تم تعيين شحنة جديدة لك برقم ${shipment.trackingId}`,
-        read: false,
-        link: `/courier/shipments/${shipment.id}`
-      } as Partial<Notification> as any, 'NOT');
+      if (c?.userId) {
+        await api.notifications.create({
+          targetRole: 'courier',
+          targetUserId: c.userId,
+          type: 'info',
+          title: 'شحنة جديدة',
+          message: `تم تعيين شحنة جديدة لك برقم ${shipment.trackingId}`,
+          link: `/courier/shipments/view/${shipment.id}`
+        });
+      }
+
+      toast.success('تم تعيين المندوب بنجاح');
+      queryClient.invalidateQueries({ queryKey: ['shipment', id] });
+      queryClient.invalidateQueries({ queryKey: ['shipment-events', id] });
+    } catch (err) {
+      toast.error('حدث خطأ أثناء تعيين المندوب');
+    } finally {
+      setIsUpdating(false);
     }
-
-    toast.success('تم تعيين المندوب بنجاح');
-    setRefresh(r => r + 1);
   };
-
 
   const copyCode = () => {
     navigator.clipboard.writeText(shipment.verificationCode || '');
     toast.success(t.copied);
   };
 
-  const [isPrinting, setIsPrinting] = useState(false);
-
   const handlePrintLabel = () => {
-    window.print();
+    setIsPrinting(true);
+    setTimeout(() => {
+      window.print();
+      setIsPrinting(false);
+    }, 500);
   };
 
   return (
@@ -361,7 +402,9 @@ const ShipmentDetailsPage: React.FC = () => {
                 <Textarea value={note} onChange={e => setNote(e.target.value)} className="rounded-xl" />
               </div>
               <motion.div whileTap={{ scale: 0.97 }}>
-                <Button onClick={handleUpdateStatus} disabled={!newStatus} className="rounded-xl">{t.saveUpdate}</Button>
+                <Button onClick={handleUpdateStatus} disabled={!newStatus || isUpdating} className="rounded-xl">
+                  {isUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : t.saveUpdate}
+                </Button>
               </motion.div>
             </div>
           </div>
@@ -371,7 +414,11 @@ const ShipmentDetailsPage: React.FC = () => {
         <div className="lg:col-span-2">
           <div className="admin-card p-6">
             <h3 className="font-semibold text-sm mb-4">{t.timeline}</h3>
-            {events.length === 0 ? (
+            {eventsLoading ? (
+              <div className="flex justify-center p-4">
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : events.length === 0 ? (
               <p className="text-sm text-muted-foreground">{t.noDataYet}</p>
             ) : (
               <div className="space-y-4">
@@ -385,8 +432,8 @@ const ShipmentDetailsPage: React.FC = () => {
                       {i < events.length - 1 && <div className="w-px flex-1 bg-border mt-1" />}
                     </div>
                     <div className="pb-4">
-                      <StatusBadge status={event.status} />
-                      {event.note && <p className="text-xs text-muted-foreground mt-1">{event.note}</p>}
+                      <StatusBadge status={event.status as any} />
+                      {event.notes && <p className="text-xs text-muted-foreground mt-1">{event.notes}</p>}
                       <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
                         <span>{event.actor}</span>
                         <span>•</span>

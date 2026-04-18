@@ -96,7 +96,18 @@ const ProtectedRoutes = () => {
 };
 
 const AppRoutes = () => {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-muted-foreground font-medium animate-pulse">جاري التحميل...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Routes>
@@ -116,11 +127,16 @@ const App = () => (
       <AuthProvider>
         <TooltipProvider>
           <Sonner />
-          <BrowserRouter>
+          <BrowserRouter
+            future={{
+              v7_startTransition: true,
+              v7_relativeSplatPath: true,
+            }}
+          >
             <AppRoutes />
           </BrowserRouter>
-          <Analytics />
-          <SpeedInsights />
+          <Analytics debug={false} />
+          <SpeedInsights debug={false} />
         </TooltipProvider>
       </AuthProvider>
     </ThemeProvider>

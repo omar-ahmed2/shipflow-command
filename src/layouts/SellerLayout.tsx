@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import { db } from '@/db';
-import type { Notification } from '@/db/schema';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 import {
-  LayoutDashboard, Package, PlusCircle, Wallet, Settings,
-  LogOut, Menu, Bell, Moon, Sun, Globe, ChevronLeft, Store
+  LayoutDashboard, Package, PlusCircle, Wallet,
+  LogOut, Menu, Bell, ChevronLeft
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,9 +17,10 @@ import { menuItemVariants, badgePulse } from '@/animations/variants';
 
 const SellerLayout: React.FC = () => {
   const { user, logout } = useAuth();
-  const { t, isDark, toggleTheme, lang, setLang } = useTheme();
+  const { t } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth > 768);
   const [notifOpen, setNotifOpen] = useState(false);
 
@@ -41,7 +42,20 @@ const SellerLayout: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const notifications = db.query<Notification>('notifications', n => n.targetRole === 'seller' && n.targetUserId === user?.id && !n.read);
+  const { data: allNotifications = [] } = useQuery({
+    queryKey: ['notifications', user?.role, user?.id],
+    queryFn: () => user ? api.notifications.getByUser(user.role, user.id) : Promise.resolve([]),
+    enabled: !!user
+  });
+
+  const notifications = allNotifications.filter(n => !n.read);
+
+  const readMutation = useMutation({
+    mutationFn: (id: string) => api.notifications.update(id, { read: true }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    }
+  });
 
   const menuItems = [
     { icon: LayoutDashboard, label: t.dashboard || "لوحة القيادة", path: '/seller' },
@@ -53,7 +67,7 @@ const SellerLayout: React.FC = () => {
   const handleLogout = () => { logout(); navigate('/login'); };
 
   return (
-    <div className="min-h-screen flex bg-background">
+    <div className="min-h-screen flex bg-background" dir="rtl">
       {/* Mobile Backdrop */}
       {sidebarOpen && (
         <div 
@@ -113,20 +127,20 @@ const SellerLayout: React.FC = () => {
                 variants={menuItemVariants}
                 initial="initial"
                 animate="animate"
-                whileHover={{ x: 2 }}
+                whileHover={{ x: -2 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={() => navigate(item.path)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all relative
                   ${isActive
-                    ? 'bg-primary/15 text-primary font-medium'
+                    ? 'bg-primary/15 text-primary font-bold'
                     : 'text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground'}`}
               >
-                <item.icon className="w-4 h-4 flex-shrink-0" />
+                <item.icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-primary' : ''}`} />
                 {sidebarOpen && <span>{item.label}</span>}
                 {isActive && (
                   <motion.div
                     layoutId="sidebarIndicator"
-                    className="absolute start-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full bg-primary"
+                    className="absolute end-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full bg-primary"
                     transition={{ type: "spring", stiffness: 300, damping: 30 }}
                   />
                 )}
@@ -142,9 +156,9 @@ const SellerLayout: React.FC = () => {
               {user?.name?.charAt(0)}
             </div>
             {sidebarOpen && (
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate text-sidebar-foreground">{user?.name}</p>
-                <p className="text-[10px] text-sidebar-foreground/50">تاجر</p>
+              <div className="flex-1 min-w-0 text-right">
+                <p className="text-sm font-bold truncate text-sidebar-foreground">{user?.name}</p>
+                <p className="text-[10px] text-sidebar-foreground/50 font-black uppercase tracking-wider">تاجر</p>
               </div>
             )}
             {sidebarOpen && (
@@ -164,7 +178,7 @@ const SellerLayout: React.FC = () => {
           <div className="flex items-center gap-3">
             <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
               onClick={() => setSidebarOpen(!sidebarOpen)} className="text-muted-foreground hover:text-foreground">
-              {sidebarOpen ? <ChevronLeft className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              {sidebarOpen ? <ChevronLeft className="w-5 h-5 rotate-180" /> : <Menu className="w-5 h-5" />}
             </motion.button>
           </div>
 
@@ -175,28 +189,32 @@ const SellerLayout: React.FC = () => {
                   <Bell className="w-4 h-4" />
                   {notifications.length > 0 && (
                     <motion.span {...badgePulse}
-                      className="absolute -top-0.5 -end-0.5 w-4 h-4 bg-destructive text-destructive-foreground text-[10px] rounded-full flex items-center justify-center">
+                      className="absolute -top-0.5 -end-0.5 w-4 h-4 bg-destructive text-destructive-foreground text-[10px] rounded-full flex items-center justify-center font-bold">
                       {notifications.length}
                     </motion.span>
                   )}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-80">
-                <div className="p-3 border-b font-medium text-sm">{t.notificationsTitle || "الإشعارات"}</div>
+              <DropdownMenuContent align="start" className="w-80 rounded-[20px] shadow-2xl p-2 border-none">
+                <div className="p-3 font-black text-sm text-right">{t.notificationsTitle || "الإشعارات"}</div>
                 {notifications.length === 0 ? (
-                  <div className="p-6 text-center text-sm text-muted-foreground">{t.noNotifications || "لا توجد إشعارات"}</div>
+                  <div className="p-8 text-center text-sm text-muted-foreground opacity-60">لا توجد إشعارات جديدة</div>
                 ) : (
-                  notifications.slice(0, 5).map(n => (
-                    <DropdownMenuItem key={n.id} className="flex flex-col items-start p-3 cursor-pointer"
-                      onClick={() => {
-                        db.update('notifications', n.id, { read: true });
-                        if (n.link) navigate(n.link);
-                      }}
-                    >
-                      <span className="text-sm font-medium">{n.title}</span>
-                      <span className="text-xs text-muted-foreground">{n.message}</span>
-                    </DropdownMenuItem>
-                  ))
+                  <div className="max-h-[300px] overflow-y-auto space-y-1">
+                    {notifications.slice(0, 5).map(n => (
+                      <DropdownMenuItem 
+                        key={n.id} 
+                        className="flex flex-col items-end p-4 rounded-xl cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={() => {
+                          readMutation.mutate(n.id);
+                          if (n.link) navigate(n.link);
+                        }}
+                      >
+                        <span className="text-sm font-bold text-right">{n.title}</span>
+                        <span className="text-[11px] text-muted-foreground text-right mt-1 leading-relaxed">{n.message}</span>
+                      </DropdownMenuItem>
+                    ))}
+                  </div>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>

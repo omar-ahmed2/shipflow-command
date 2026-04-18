@@ -2,24 +2,25 @@ import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import { db } from '@/db';
-import type { Notification } from '@/db/schema';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 import {
   LayoutDashboard, Package, PlusCircle, Truck, Users, Wallet, BarChart3, Settings,
-  LogOut, Menu, Bell, Moon, Sun, Globe, ChevronLeft, Store, Receipt
+  LogOut, Menu, Bell, ChevronLeft, Store, Receipt
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { menuItemVariants, badgePulse } from '@/animations/variants';
 
 const AdminLayout: React.FC = () => {
   const { user, logout } = useAuth();
-  const { t, isDark, toggleTheme, lang, setLang } = useTheme();
+  const { t, lang } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth > 768);
   const [notifOpen, setNotifOpen] = useState(false);
 
@@ -41,7 +42,20 @@ const AdminLayout: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const notifications = db.query<Notification>('notifications', n => n.targetRole === 'admin' && !n.read);
+  const { data: allNotifications = [] } = useQuery({
+    queryKey: ['notifications', user?.role, user?.id],
+    queryFn: () => user ? api.notifications.getByUser(user.role, user.id) : Promise.resolve([]),
+    enabled: !!user
+  });
+
+  const notifications = allNotifications.filter(n => !n.read);
+
+  const readMutation = useMutation({
+    mutationFn: (id: string) => api.notifications.update(id, { read: true }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    }
+  });
 
   const menuItems = [
     { icon: LayoutDashboard, label: t.dashboard, path: '/dashboard' },
@@ -111,7 +125,7 @@ const AdminLayout: React.FC = () => {
         <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
           {menuItems.map((item, i) => {
             const isActive = location.pathname === item.path ||
-              (item.path === '/shipments' && location.pathname.startsWith('/shipments/') && item.path === '/shipments');
+              (item.path !== '/shipments/create' && location.pathname.startsWith(item.path + '/'));
             return (
               <motion.button
                 key={item.path}
@@ -122,20 +136,22 @@ const AdminLayout: React.FC = () => {
                 whileHover={{ x: lang === 'ar' ? -2 : 2 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={() => navigate(item.path)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all relative
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all relative overflow-hidden
                   ${isActive
-                    ? 'bg-primary/15 text-primary font-medium'
-                    : 'text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground'}`}
+                    ? 'bg-primary/10 text-primary font-semibold'
+                    : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'}`}
               >
-                <item.icon className="w-4 h-4 flex-shrink-0" />
-                {sidebarOpen && <span>{item.label}</span>}
                 {isActive && (
                   <motion.div
                     layoutId="sidebarIndicator"
-                    className="absolute start-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full bg-primary"
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    className="absolute start-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-e-full bg-primary"
+                    initial={{ opacity: 0, scaleY: 0 }}
+                    animate={{ opacity: 1, scaleY: 1 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 25 }}
                   />
                 )}
+                <item.icon className={`w-[18px] h-[18px] flex-shrink-0 transition-colors ${isActive ? 'text-primary' : ''}`} />
+                {sidebarOpen && <span className="truncate">{item.label}</span>}
               </motion.button>
             );
           })}
@@ -181,28 +197,32 @@ const AdminLayout: React.FC = () => {
                   <Bell className="w-4 h-4" />
                   {notifications.length > 0 && (
                     <motion.span {...badgePulse}
-                      className="absolute -top-0.5 -end-0.5 w-4 h-4 bg-destructive text-destructive-foreground text-[10px] rounded-full flex items-center justify-center">
+                      className="absolute -top-0.5 -end-0.5 w-4 h-4 bg-destructive text-destructive-foreground text-[10px] rounded-full flex items-center justify-center font-bold">
                       {notifications.length}
                     </motion.span>
                   )}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-80">
-                <div className="p-3 border-b font-medium text-sm">{t.notificationsTitle}</div>
+              <DropdownMenuContent align="start" className="w-80 rounded-[20px] shadow-2xl p-2 border-none">
+                <div className="p-3 font-black text-sm text-right">{t.notificationsTitle || "الإشعارات"}</div>
                 {notifications.length === 0 ? (
-                  <div className="p-6 text-center text-sm text-muted-foreground">{t.noNotifications}</div>
+                  <div className="p-8 text-center text-sm text-muted-foreground opacity-60">لا توجد إشعارات جديدة</div>
                 ) : (
-                  notifications.slice(0, 5).map(n => (
-                    <DropdownMenuItem key={n.id} className="flex flex-col items-start p-3 cursor-pointer"
-                      onClick={() => {
-                        db.update('notifications', n.id, { read: true });
-                        if (n.link) navigate(n.link);
-                      }}
-                    >
-                      <span className="text-sm font-medium">{n.title}</span>
-                      <span className="text-xs text-muted-foreground">{n.message}</span>
-                    </DropdownMenuItem>
-                  ))
+                  <div className="max-h-[300px] overflow-y-auto space-y-1">
+                    {notifications.slice(0, 5).map(n => (
+                      <DropdownMenuItem 
+                        key={n.id} 
+                        className="flex flex-col items-end p-4 rounded-xl cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={() => {
+                          readMutation.mutate(n.id);
+                          if (n.link) navigate(n.link);
+                        }}
+                      >
+                        <span className="text-sm font-bold text-right">{n.title}</span>
+                        <span className="text-[11px] text-muted-foreground text-right mt-1 leading-relaxed">{n.message}</span>
+                      </DropdownMenuItem>
+                    ))}
+                  </div>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>

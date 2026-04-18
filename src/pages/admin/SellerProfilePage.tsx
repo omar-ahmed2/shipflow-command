@@ -1,8 +1,8 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTheme } from '@/context/ThemeContext';
-import { db } from '@/db';
-import type { Seller, Shipment, Settlement, User } from '@/db/schema';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 import { formatCurrency, formatDateTime } from '@/utils/formatters';
 import { 
   Store, 
@@ -17,7 +17,8 @@ import {
   Clock,
   ExternalLink,
   Users,
-  Trash2
+  Trash2,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,12 +31,45 @@ const SellerProfilePage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const { t, lang } = useTheme();
     const navigate = useNavigate();
-
-    const seller = useMemo(() => db.getById<Seller>('sellers', id || ''), [id]);
+    const queryClient = useQueryClient();
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
-    const userRole = useMemo(() => seller ? db.getById<User>('users', seller.userId) : null, [seller]);
-    const shipments = useMemo(() => db.getAll<Shipment>('shipments').filter(s => s.sellerId === id), [id]);
-    const settlements = useMemo(() => db.getAll<Settlement>('settlements').filter(s => s.sellerId === id).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [id]);
+
+    // Queries
+    const { data: seller, isLoading: sellerLoading } = useQuery({
+        queryKey: ['seller', id],
+        queryFn: () => api.sellers.getById(id!),
+        enabled: !!id
+    });
+
+    const { data: userProfile, isLoading: userLoading } = useQuery({
+        queryKey: ['user', seller?.userId],
+        queryFn: () => api.users.getById(seller!.userId),
+        enabled: !!seller?.userId
+    });
+
+    const { data: shipments = [], isLoading: shipmentsLoading } = useQuery({
+        queryKey: ['shipments', 'seller', id],
+        queryFn: () => api.shipments.getBySellerId(id!),
+        enabled: !!id
+    });
+
+    const { data: settlements = [], isLoading: settlementsLoading } = useQuery({
+        queryKey: ['settlements', 'seller', id], // Filter logic in backend or frontend? Currently API.ts has getByCourierId but not getBySellerId? 
+        // Wait, I should add getBySellerId for settlements too if I need it.
+        queryFn: () => api.settlements.getAll().then(all => all.filter(s => s.sellerId === id)),
+        enabled: !!id
+    });
+
+    const isLoading = sellerLoading || userLoading || shipmentsLoading || settlementsLoading;
+
+    if (isLoading) {
+        return (
+            <div className="flex flex-col items-center justify-center h-[60vh]">
+                <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
+                <p className="text-muted-foreground">جاري تحميل بيانات المتجر...</p>
+            </div>
+        );
+    }
 
     if (!seller) {
         return (
@@ -63,19 +97,15 @@ const SellerProfilePage: React.FC = () => {
         goodsInTransit: shipments.filter(s => ['assigned', 'out_for_delivery', 'pending'].includes(s.status)).reduce((sum, s) => sum + s.price, 0),
     };
 
-    const handleDelete = () => {
-        if (!seller) return;
-        
-        // Clear shipments sellerId
-        const sellerShipments = db.getAll<Shipment>('shipments').filter(s => s.sellerId === id);
-        sellerShipments.forEach(s => db.update('shipments', s.id, { sellerId: undefined }));
-        
-        // Delete records
-        if (seller.userId) db.delete('users', seller.userId);
-        db.delete('sellers', seller.id);
-        
-        toast.success('تم حذف المتجر وكل بياناته بنجاح');
-        navigate('/sellers');
+    const handleDelete = async () => {
+        try {
+            await api.users.delete(seller.userId); // This cascades to sellers table
+            queryClient.invalidateQueries({ queryKey: ['sellers'] });
+            toast.success('تم حذف المتجر وكل بياناته بنجاح');
+            navigate('/sellers');
+        } catch (err) {
+            toast.error('حدث خطأ أثناء محاولة الحذف');
+        }
     };
 
     return (
@@ -138,14 +168,14 @@ const SellerProfilePage: React.FC = () => {
                                 <p className="font-mono-nums font-semibold">{formatDateTime(seller.joinDate, lang)}</p>
                             </div>
                         </div>
-                        {userRole && (
+                        {userProfile && (
                              <div className="flex items-center gap-3">
                                 <div className="p-2 bg-primary/10 rounded-lg text-primary">
                                     <TrendingUp className="w-4 h-4" />
                                 </div>
                                 <div>
                                     <p className="text-xs text-muted-foreground">البريد الإلكتروني</p>
-                                    <p className="font-semibold text-sm">{userRole.email}</p>
+                                    <p className="font-semibold text-sm">{userProfile.email}</p>
                                 </div>
                             </div>
                         )}

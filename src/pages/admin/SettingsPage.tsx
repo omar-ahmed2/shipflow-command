@@ -1,28 +1,41 @@
 import React, { useState } from 'react';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
-import { db } from '@/db';
-import { seedDatabase } from '@/db/seed';
-import { hashPassword, verifyPassword } from '@/db/helpers';
-import type { User } from '@/db/schema';
-import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
+import { supabase } from '@/lib/supabase';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { pageVariants } from '@/animations/variants';
-import { Settings2, Lock, Database } from 'lucide-react';
+import { Settings2, Lock, Database, Loader2 } from 'lucide-react';
 
 const SettingsPage: React.FC = () => {
-  const { t, lang, isDark } = useTheme();
+  const { t } = useTheme();
   const { user } = useAuth();
-  const [clearConfirm, setClearConfirm] = useState(false);
   const [companyName, setCompanyName] = useState(() => localStorage.getItem('shipflow_company') || 'ELMona Shipping');
-  const [curPwd, setCurPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
   const [confPwd, setConfPwd] = useState('');
   const [activeTab, setActiveTab] = useState('general');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const { data: shipmentsCount = 0 } = useQuery({ 
+    queryKey: ['shipments', 'count'], 
+    queryFn: async () => {
+        const { count } = await supabase.from('shipments').select('*', { count: 'exact', head: true });
+        return count || 0;
+    }
+  });
+
+  const { data: couriersCount = 0 } = useQuery({ 
+    queryKey: ['couriers', 'count'], 
+    queryFn: async () => {
+        const { count } = await supabase.from('couriers').select('*', { count: 'exact', head: true });
+        return count || 0;
+    }
+  });
 
   const settingsTabs = [
     { id: 'general', label: t.general, icon: Settings2 },
@@ -35,26 +48,24 @@ const SettingsPage: React.FC = () => {
     toast.success(t.saved);
   };
 
-  const changePassword = () => {
-    if (!user) return;
-    const u = db.getById<User>('users', user.id);
-    if (!u || !verifyPassword(curPwd, u.passwordHash)) { toast.error(t.wrongPassword); return; }
-    if (newPwd !== confPwd) { toast.error(t.passwordMismatch); return; }
-    db.update('users', user.id, { passwordHash: hashPassword(newPwd) });
-    setCurPwd(''); setNewPwd(''); setConfPwd('');
-    toast.success(t.passwordChanged);
-  };
+  const changePassword = async () => {
+    if (!newPwd) return toast.error('يرجى إدخال كلمة المرور الجديدة');
+    if (newPwd !== confPwd) return toast.error(t.passwordMismatch);
+    if (newPwd.length < 6) return toast.error('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
 
-  const clearDB = () => {
-    db.clearAll();
-    seedDatabase();
-    setClearConfirm(false);
-    toast.success(t.saved);
-    window.location.reload();
+    setIsSaving(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPwd });
+      if (error) throw error;
+      
+      setNewPwd(''); setConfPwd('');
+      toast.success(t.passwordChanged);
+    } catch (err: any) {
+      toast.error(err.message || 'حدث خطأ أثناء تغيير كلمة المرور');
+    } finally {
+      setIsSaving(false);
+    }
   };
-
-  const totalShipments = db.count('shipments');
-  const totalCouriers = db.count('couriers');
 
   const renderContent = () => {
     switch (activeTab) {
@@ -74,21 +85,25 @@ const SettingsPage: React.FC = () => {
         return (
           <div className="space-y-4">
             <h3 className="font-semibold text-sm">{t.changePassword}</h3>
-            <div><Label>{t.currentPassword}</Label><Input type="password" value={curPwd} onChange={e => setCurPwd(e.target.value)} className="rounded-xl mt-1" /></div>
             <div><Label>{t.newPassword}</Label><Input type="password" value={newPwd} onChange={e => setNewPwd(e.target.value)} className="rounded-xl mt-1" /></div>
             <div><Label>{t.confirmPassword}</Label><Input type="password" value={confPwd} onChange={e => setConfPwd(e.target.value)} className="rounded-xl mt-1" /></div>
-            <Button onClick={changePassword} className="rounded-xl">{t.save}</Button>
+            <Button onClick={changePassword} disabled={isSaving} className="rounded-xl gap-2">
+                {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+                {t.save}
+            </Button>
           </div>
         );
 
       case 'database':
         return (
           <div className="space-y-4">
-            <div className="flex justify-between p-3 rounded-lg border"><span className="text-muted-foreground">{t.version}</span><span className="font-mono-nums">1.0.0</span></div>
-            <div className="flex justify-between p-3 rounded-lg border"><span className="text-muted-foreground">{t.totalShipmentsCount}</span><span className="font-mono-nums">{totalShipments}</span></div>
-            <div className="flex justify-between p-3 rounded-lg border"><span className="text-muted-foreground">{t.totalCouriersCount}</span><span className="font-mono-nums">{totalCouriers}</span></div>
-            <hr />
-            <Button variant="destructive" className="rounded-xl" onClick={() => setClearConfirm(true)}>{t.clearDatabase}</Button>
+            <div className="flex justify-between p-3 rounded-lg border font-mono">
+                <span className="text-muted-foreground">مشروع Supabase</span>
+                <span className="font-semibold text-xs opacity-50 select-all">{import.meta.env.VITE_SUPABASE_URL}</span>
+            </div>
+            <div className="flex justify-between p-3 rounded-lg border"><span className="text-muted-foreground">{t.version}</span><span className="font-mono-nums">2.0.0 (Supabase)</span></div>
+            <div className="flex justify-between p-3 rounded-lg border"><span className="text-muted-foreground">{t.totalShipmentsCount}</span><span className="font-mono-nums">{shipmentsCount}</span></div>
+            <div className="flex justify-between p-3 rounded-lg border"><span className="text-muted-foreground">{t.totalCouriersCount}</span><span className="font-mono-nums">{couriersCount}</span></div>
           </div>
         );
       default:
@@ -97,18 +112,18 @@ const SettingsPage: React.FC = () => {
   };
 
   return (
-    <motion.div variants={pageVariants} initial="initial" animate="animate" className="max-w-3xl mx-auto">
-      <h2 className="text-xl font-bold mb-6">{t.settings}</h2>
+    <motion.div variants={pageVariants} initial="initial" animate="animate" className="max-w-3xl mx-auto" dir="rtl">
+      <h2 className="text-xl font-bold mb-6 text-right">{t.settings}</h2>
 
       <div className="flex gap-6 min-h-[400px]">
         {/* Side navigation */}
-        <div className="w-48 flex-shrink-0 rounded-2xl border overflow-hidden bg-card">
+        <div className="w-48 flex-shrink-0 rounded-2xl border overflow-hidden bg-card h-fit">
           {settingsTabs.map(tab => (
             <motion.button
               key={tab.id}
-              whileHover={{ x: 2 }}
+              whileHover={{ x: -2 }}
               onClick={() => setActiveTab(tab.id)}
-              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-start transition-all"
+              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-right transition-all"
               style={{
                 background: activeTab === tab.id ? 'hsl(var(--primary) / 0.08)' : 'transparent',
                 borderInlineStart: activeTab === tab.id ? '3px solid hsl(var(--primary))' : '3px solid transparent',
@@ -129,14 +144,12 @@ const SettingsPage: React.FC = () => {
             initial="initial"
             animate="animate"
             exit="exit"
-            className="flex-1 rounded-2xl border p-6 bg-card"
+            className="flex-1 rounded-2xl border p-6 bg-card text-right"
           >
             {renderContent()}
           </motion.div>
         </AnimatePresence>
       </div>
-
-      <ConfirmDialog open={clearConfirm} onOpenChange={setClearConfirm} title={t.clearDatabase} description={t.clearDBWarning} onConfirm={clearDB} />
     </motion.div>
   );
 };

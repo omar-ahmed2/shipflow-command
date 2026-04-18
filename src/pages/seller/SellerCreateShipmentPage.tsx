@@ -1,22 +1,20 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { db } from '@/db';
+import { api } from '@/lib/api';
 import { generateTrackingId, generateVerificationCode } from '@/db/helpers';
-import type { Shipment, Seller, ShipmentEvent, Notification } from '@/db/schema';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Save, X } from 'lucide-react';
+import { Save, X, Package, Phone, MapPin, BadgeDollarSign, MessageSquare, Loader2, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 
 const SellerCreateShipmentPage = () => {
-  const { user } = useAuth();
+  const { user, sellerProfile } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
 
-  const seller = db.getAll<Seller>('sellers').find(s => s.userId === user?.id);
-  const sellerId = seller?.id || '';
-  
   const [formData, setFormData] = useState({
     customerName: '',
     customerPhone: '',
@@ -24,7 +22,7 @@ const SellerCreateShipmentPage = () => {
     city: '',
     governorate: '',
     price: '',
-    shippingFee: '',
+    shippingFee: '50', // Default fee
     notes: ''
   });
 
@@ -32,8 +30,14 @@ const SellerCreateShipmentPage = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!sellerProfile?.id) {
+      toast.error('لم يتم العثور على حساب المتجر. يرجى تسجيل الخروج والوصول مرة أخرى.');
+      return;
+    }
+
     if (!formData.customerName || !formData.customerPhone || !formData.address || !formData.city || !formData.governorate || !formData.price || !formData.shippingFee) {
       toast.error('يرجى تعبئة جميع الحقول المطلوبة');
       return;
@@ -41,174 +45,210 @@ const SellerCreateShipmentPage = () => {
 
     setLoading(true);
     
-    // Simulate network delay
-    setTimeout(() => {
-      if (!seller) {
-        toast.error('لم يتم العثور على حساب المتجر');
-        setLoading(false);
-        return;
-      }
+    try {
+      const trackingId = generateTrackingId();
+      const verificationCode = generateVerificationCode();
       
-      const newShipment: Partial<Shipment> = {
-        trackingId: generateTrackingId(),
+      const newShipmentData = {
+        trackingId,
         customerName: formData.customerName,
         customerPhone: formData.customerPhone,
         address: formData.address,
         city: formData.city,
         governorate: formData.governorate,
         price: parseFloat(formData.price),
+        shippingFee: parseFloat(formData.shippingFee) || 0,
         paymentType: "COD",
-        codCollected: false,
         status: "pending",
         courierId: null,
-        sellerId: sellerId,
-        createdBy: user?.id || 'unknown',
-        verificationCode: generateVerificationCode(),
+        sellerId: sellerProfile.id,
+        createdBy: user?.id,
+        verificationCode,
         notes: formData.notes,
-        shippingFee: parseFloat(formData.shippingFee) || 0
       };
 
-      const created = db.create<Shipment>('shipments', newShipment as any, 'SHP');
+      const created = await api.shipments.create(newShipmentData);
       
-      // Add event log
-      db.create<ShipmentEvent>('shipmentEvents', {
+      // Add initial event
+      await api.shipments.addEvent({
         shipmentId: created.id,
         status: 'pending',
-        actor: user?.name,
+        actor: user?.id || null,
         actorRole: 'seller',
-        note: 'تم إنشاء الشحنة من قبل التاجر',
-        timestamp: new Date().toISOString()
-      } as Partial<ShipmentEvent> as any, 'EVT');
+        notes: 'تم إنشاء الشحنة وجاري انتظار المندوب'
+      });
 
-      // Admin notification
-      db.create<Notification>('notifications', {
-        targetRole: 'admin',
-        type: 'info',
-        title: 'شحنة جديدة',
-        message: `أضاف ${user?.name} شحنة جديدة برقم ${created.trackingId}`,
-        read: false,
-        link: `/shipments/${created.id}`
-      } as Partial<Notification> as any, 'NOT');
+      // Invalidate queries
+      queryClient.invalidateQueries({ queryKey: ['seller_shipments'] });
+      queryClient.invalidateQueries({ queryKey: ['shipments'] });
 
-      setLoading(false);
-      toast.success('تمت إضافة الشحنة بنجاح');
+      toast.success('تم إنشاء الشحنة بنجاح');
       navigate('/seller/shipments');
-    }, 600);
+    } catch (error: any) {
+      console.error('Error creating shipment:', error);
+      toast.error('حدث خطأ أثناء إنشاء الشحنة: ' + (error.message || 'خطأ غير معروف'));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">إضافة شحنة جديدة</h1>
-        <Button variant="outline" onClick={() => navigate('/seller/shipments')}>
-          <X className="w-4 h-4 mr-2" />
+    <div className="max-w-2xl mx-auto space-y-6" dir="rtl">
+      <div className="flex items-center justify-between flex-row-reverse">
+        <h1 className="text-2xl font-black text-right">إضافة شحنة جديدة 📦</h1>
+        <Button variant="ghost" onClick={() => navigate('/seller/shipments')} className="rounded-xl gap-2 hover:bg-muted/50">
           إلغاء
+          <ArrowRight className="w-4 h-4" />
         </Button>
       </div>
 
-      <Card>
+      <Card className="border-none shadow-premium overflow-hidden rounded-[32px]">
         <form onSubmit={handleSubmit}>
-          <CardHeader>
-            <CardTitle>بيانات العميل والشحنة</CardTitle>
+          <CardHeader className="bg-primary/5 border-b border-primary/10 p-8">
+            <CardTitle className="text-lg font-bold flex items-center gap-3 justify-end flex-row-reverse">
+              <div className="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center text-white">
+                <Package className="w-5 h-5" />
+              </div>
+              بيانات العميل والشحنة
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">اسم العميل <span className="text-red-500">*</span></label>
-                <input 
-                  type="text" name="customerName" 
-                  value={formData.customerName} onChange={handleChange}
-                  className="w-full p-2 border rounded-md bg-background"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">رقم هاتف العميل <span className="text-red-500">*</span></label>
-                <input 
-                  type="tel" name="customerPhone" 
-                  value={formData.customerPhone} onChange={handleChange}
-                  className="w-full p-2 border rounded-md bg-background"
-                  dir="ltr"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">المحافظة <span className="text-red-500">*</span></label>
-              <input 
-                type="text" name="governorate" 
-                value={formData.governorate} onChange={handleChange}
-                className="w-full p-2 border rounded-md bg-background"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">المدينة / المنطقة <span className="text-red-500">*</span></label>
-              <input 
-                type="text" name="city" 
-                value={formData.city} onChange={handleChange}
-                className="w-full p-2 border rounded-md bg-background"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">العنوان التفصيلي <span className="text-red-500">*</span></label>
-              <input 
-                type="text" name="address" 
-                value={formData.address} onChange={handleChange}
-                className="w-full p-2 border rounded-md bg-background"
-                placeholder="اسم الشارع، رقم العمارة، رقم الشقة..."
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">قيمة المنتجات (ثمن الشحنة للتاجر) <span className="text-red-500">*</span></label>
-                <div className="relative">
-                  <input 
-                    type="number" name="price" 
-                    value={formData.price} onChange={handleChange}
-                    className="w-full p-2 border rounded-md bg-background pl-12"
-                    dir="ltr"
+          <CardContent className="p-8 space-y-8">
+            {/* Customer Info Section */}
+            <div className="space-y-4">
+               <h3 className="text-xs font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2 justify-end flex-row-reverse">
+                  <Phone className="w-3 h-3" />
+                  بيانات التواصل
+               </h3>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2 text-right">
+                    <label className="text-sm font-bold opacity-80">اسم العميل <span className="text-destructive">*</span></label>
+                    <input 
+                    type="text" name="customerName" 
+                    value={formData.customerName} onChange={handleChange}
+                    placeholder="الاسم الكامل للعميل"
+                    className="w-full p-4 bg-muted/20 border-none rounded-2xl focus:ring-2 focus:ring-primary/40 transition-all font-bold"
                     required
-                  />
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">EGP</span>
+                    />
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">سعر التوصيل (عمولة الشركة) <span className="text-red-500">*</span></label>
-                <div className="relative">
-                  <input 
-                    type="number" name="shippingFee" 
-                    value={formData.shippingFee} onChange={handleChange}
-                    className="w-full p-2 border rounded-md bg-background pl-12"
+                <div className="space-y-2 text-right">
+                    <label className="text-sm font-bold opacity-80">رقم الهاتف <span className="text-destructive">*</span></label>
+                    <input 
+                    type="tel" name="customerPhone" 
+                    value={formData.customerPhone} onChange={handleChange}
+                    className="w-full p-4 bg-muted/20 border-none rounded-2xl focus:ring-2 focus:ring-primary/40 transition-all font-mono font-bold"
+                    placeholder="01xxxxxxxxx"
                     dir="ltr"
                     required
-                  />
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">EGP</span>
+                    />
                 </div>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">ملاحظات للمندوب</label>
-              <textarea 
-                name="notes" 
-                value={formData.notes} onChange={handleChange}
-                className="w-full p-2 border rounded-md bg-background min-h-[100px]"
-                placeholder="مثال: يرجى الاتصال قبل الوصول بساعة..."
-              ></textarea>
+            {/* Address Section */}
+            <div className="space-y-4">
+               <h3 className="text-xs font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2 justify-end flex-row-reverse">
+                  <MapPin className="w-3 h-3" />
+                  تفاصيل العنوان
+               </h3>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2 text-right">
+                    <label className="text-sm font-bold opacity-80">المحافظة <span className="text-destructive">*</span></label>
+                    <input 
+                    type="text" name="governorate" 
+                    value={formData.governorate} onChange={handleChange}
+                    className="w-full p-4 bg-muted/20 border-none rounded-2xl focus:ring-2 focus:ring-primary/40 transition-all font-bold"
+                    required
+                    />
+                </div>
+                <div className="space-y-2 text-right">
+                    <label className="text-sm font-bold opacity-80">المدينة / المنطقة <span className="text-destructive">*</span></label>
+                    <input 
+                    type="text" name="city" 
+                    value={formData.city} onChange={handleChange}
+                    className="w-full p-4 bg-muted/20 border-none rounded-2xl focus:ring-2 focus:ring-primary/40 transition-all font-bold"
+                    required
+                    />
+                </div>
+              </div>
+              <div className="space-y-2 text-right">
+                <label className="text-sm font-bold opacity-80">العنوان التفصيلي <span className="text-destructive">*</span></label>
+                <input 
+                  type="text" name="address" 
+                  value={formData.address} onChange={handleChange}
+                  className="w-full p-4 bg-muted/20 border-none rounded-2xl focus:ring-2 focus:ring-primary/40 transition-all font-bold"
+                  placeholder="رقم العمارة، الشقة، أو علامة مميزة..."
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Financial Section */}
+            <div className="space-y-4">
+               <h3 className="text-xs font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2 justify-end flex-row-reverse">
+                  <BadgeDollarSign className="w-3 h-3" />
+                  المبالغ المالية
+               </h3>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2 text-right">
+                    <label className="text-sm font-bold opacity-80">قيمة الأوردر (للتاجر) <span className="text-destructive">*</span></label>
+                    <div className="relative">
+                    <input 
+                        type="number" name="price" 
+                        value={formData.price} onChange={handleChange}
+                        className="w-full p-4 pr-14 bg-muted/20 border-none rounded-2xl focus:ring-2 focus:ring-primary/40 transition-all font-mono-nums font-black"
+                        dir="ltr"
+                        required
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground text-xs font-bold">ج.م</span>
+                    </div>
+                </div>
+
+                <div className="space-y-2 text-right">
+                    <label className="text-sm font-bold opacity-80">توصيل المندوب (عمولتنا) <span className="text-destructive">*</span></label>
+                    <div className="relative">
+                    <input 
+                        type="number" name="shippingFee" 
+                        value={formData.shippingFee} onChange={handleChange}
+                        className="w-full p-4 pr-14 bg-muted/20 border-none rounded-2xl focus:ring-2 focus:ring-primary/40 transition-all font-mono-nums font-black"
+                        dir="ltr"
+                        required
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground text-xs font-bold">ج.م</span>
+                    </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Notes Section */}
+            <div className="space-y-4">
+               <h3 className="text-xs font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2 justify-end flex-row-reverse">
+                  <MessageSquare className="w-3 h-3" />
+                  ملاحظات
+               </h3>
+              <div className="space-y-2 text-right">
+                <label className="text-sm font-bold opacity-80">ملاحظات تسليم الشحنة</label>
+                <textarea 
+                  name="notes" 
+                  value={formData.notes} onChange={handleChange}
+                  className="w-full p-4 bg-muted/20 border-none rounded-2xl focus:ring-2 focus:ring-primary/40 transition-all min-h-[120px] font-medium resize-none"
+                  placeholder="مثال: يرجى تسليم الشحنة بعد الساعة 4 عصراً..."
+                ></textarea>
+              </div>
             </div>
           </CardContent>
-          <CardFooter className="bg-muted/30 p-4 border-t">
-            <Button type="submit" disabled={loading} className="w-full sm:w-auto">
-              <Save className="w-4 h-4 mr-2" />
-              {loading ? 'جاري الحفظ...' : 'حفظ وإضافة الشحنة'}
+          <CardFooter className="bg-muted/30 p-8 border-t flex justify-end">
+            <Button type="submit" disabled={loading} className="w-full sm:w-auto h-14 px-10 rounded-2xl text-lg font-black shadow-xl shadow-primary/20 gap-3 group">
+              {loading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  جاري تسجيل الشحنة...
+                </>
+              ) : (
+                <>
+                  <Save className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                  حفظ وتأكيد الشحنة
+                </>
+              )}
             </Button>
           </CardFooter>
         </form>

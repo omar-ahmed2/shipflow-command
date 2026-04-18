@@ -1,9 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { useTheme } from '@/context/ThemeContext';
-import { db } from '@/db';
-import type { Shipment, Courier } from '@/db/schema';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { Download, FileText, CircleDollarSign, TrendingUp, Wallet } from 'lucide-react';
+import { Download, FileText, CircleDollarSign, TrendingUp, Wallet, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, ComposedChart, Line } from 'recharts';
@@ -36,8 +36,15 @@ const ReportsPage: React.FC = () => {
   const { t } = useTheme();
   const [period, setPeriod] = useState('monthly');
 
-  const shipments = useMemo(() => db.getAll<Shipment>('shipments'), []);
-  const couriers = useMemo(() => db.getAll<Courier>('couriers'), []);
+  const { data: shipments = [], isLoading: shipmentsLoading } = useQuery({
+    queryKey: ['shipments'],
+    queryFn: api.shipments.getAll
+  });
+
+  const { data: couriers = [], isLoading: couriersLoading } = useQuery({
+    queryKey: ['couriers'],
+    queryFn: api.couriers.getAll
+  });
 
   const exportCSV = () => {
     const headers = ['Tracking,Customer,City,Price,Status,Courier,Date'];
@@ -56,29 +63,6 @@ const ReportsPage: React.FC = () => {
     toast.success(t.exportCSV);
   };
 
-  const exportPDF = async () => {
-    const { default: jsPDF } = await import('jspdf');
-    const { default: autoTable } = await import('jspdf-autotable');
-    const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.text('ELMona Shipping Report', 14, 20);
-    doc.setFontSize(10);
-    doc.text(new Date().toLocaleDateString(), 14, 28);
-
-    autoTable(doc, {
-      startY: 35,
-      head: [['Tracking', 'Customer', 'City', 'Price', 'Status', 'Courier']],
-      body: shipments.map(s => [
-        s.trackingId, s.customerName, s.city,
-        `${s.price}`, s.status,
-        couriers.find(c => c.id === s.courierId)?.name || '—'
-      ]),
-    });
-
-    doc.save(`report-${new Date().toISOString().split('T')[0]}.pdf`);
-    toast.success(t.exportPDF);
-  };
-
   // Courier performance
   const courierPerf = couriers.map(c => {
     const cs = shipments.filter(s => s.courierId === c.id);
@@ -93,13 +77,19 @@ const ReportsPage: React.FC = () => {
     totalVolume: shipments.filter(s => s.status === 'delivered').reduce((sum, s) => sum + s.price + (s.shippingFee || 0), 0),
   };
 
+  if (shipmentsLoading || couriersLoading) return (
+    <div className="flex flex-col items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
+        <p className="text-muted-foreground">جاري تحميل التقارير...</p>
+    </div>
+  );
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">{t.reports}</h2>
         <div className="flex gap-2">
           <Button variant="outline" className="rounded-xl" onClick={exportCSV}><Download className="w-4 h-4 me-2" />{t.exportCSV}</Button>
-          <Button variant="outline" className="rounded-xl" onClick={exportPDF}><FileText className="w-4 h-4 me-2" />{t.exportPDF}</Button>
         </div>
       </div>
 

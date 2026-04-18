@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/context/ThemeContext';
-import { db } from '@/db';
-import type { Shipment, Courier, Settlement } from '@/db/schema';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { Package, Calendar, Truck, CheckCircle, XCircle, Wallet, Plus, CircleDollarSign, Landmark, Info } from 'lucide-react';
+import { Package, Calendar, Truck, CheckCircle, Wallet, Plus, CircleDollarSign, Landmark, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AreaChart, Area, PieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 import { formatCurrency, formatDate, isToday } from '@/utils/formatters';
@@ -38,41 +38,42 @@ const ChartTooltip = ({ active, payload, label }: any) => {
 const DashboardPage: React.FC = () => {
   const { t, lang } = useTheme();
   const navigate = useNavigate();
-  const [shipments, setShipments] = useState<Shipment[]>([]);
-  const [couriers, setCouriers] = useState<Courier[]>([]);
 
-  useEffect(() => {
-    setShipments(db.getAll<Shipment>('shipments'));
-    setCouriers(db.getAll<Courier>('couriers'));
-  }, []);
+  // Queries
+  const { data: shipments = [], isLoading: shipLoading } = useQuery({ queryKey: ['shipments'], queryFn: api.shipments.getAll });
+  const { data: couriers = [], isLoading: courierLoading } = useQuery({ queryKey: ['couriers'], queryFn: api.couriers.getAll });
+  const { data: settlements = [], isLoading: settlementLoading } = useQuery({ queryKey: ['settlements'], queryFn: api.settlements.getAll });
 
-  const todayShipments = shipments.filter(s => isToday(s.createdAt));
-  const onWay = shipments.filter(s => s.status === 'out_for_delivery');
-  const deliveredAll = shipments.filter(s => s.status === 'delivered');
-  const retCan = shipments.filter(s => s.status === 'returned' || s.status === 'cancelled');
-  const pendingCod = shipments.filter(s => s.paymentType === 'COD' && !s.codCollected && s.status === 'delivered'); // Only pending if delivered and not collected
-  const codAmount = pendingCod.reduce((s, sh) => s + sh.price + (sh.shippingFee || 0), 0);
-  
-  const collectedCodAmount = shipments.filter(s => s.paymentType === 'COD' && s.codCollected && s.status === 'delivered').reduce((s, sh) => s + sh.price + (sh.shippingFee || 0), 0);
-  
-  // Real Safe Balance Calculation based on Settlements
-  const settlements = db.getAll<Settlement>('settlements');
-  const courierCollections = settlements.filter(s => s.courierId).reduce((sum, s) => sum + s.amount, 0);
-  const sellerPayments = settlements.filter(s => s.sellerId).reduce((sum, s) => sum + s.amount, 0);
-  const netSafeBalance = courierCollections - sellerPayments;
+  const isLoading = shipLoading || courierLoading || settlementLoading;
 
-  const shippingCompanyProfit = shipments.filter(s => s.status === 'delivered').reduce((s, sh) => s + (sh.shippingFee || 0), 0);
-  const sellersProfit = shipments.filter(s => s.status === 'delivered').reduce((s, sh) => s + sh.price, 0);
+  // Memoized Calculations
+  const stats = useMemo(() => {
+    const todayShipments = shipments.filter(s => isToday(s.createdAt));
+    const onWay = shipments.filter(s => s.status === 'out_for_delivery');
+    const deliveredAll = shipments.filter(s => s.status === 'delivered');
+    const pendingCod = shipments.filter(s => s.paymentType === 'COD' && !s.codCollected && s.status === 'delivered');
+    const codAmount = pendingCod.reduce((s, sh) => s + sh.price + (sh.shippingFee || 0), 0);
+    
+    // Financials
+    const courierCollections = settlements.filter(s => s.courierId).reduce((sum, s) => sum + s.amount, 0);
+    const sellerPayments = settlements.filter(s => s.sellerId).reduce((sum, s) => sum + s.amount, 0);
+    const netSafeBalance = courierCollections - sellerPayments;
+
+    const shippingCompanyProfit = shipments.filter(s => s.status === 'delivered').reduce((s, sh) => s + (sh.shippingFee || 0), 0);
+    const sellersProfit = shipments.filter(s => s.status === 'delivered').reduce((s, sh) => s + sh.price, 0);
+
+    return { todayShipments, onWay, deliveredAll, codAmount, netSafeBalance, shippingCompanyProfit, sellersProfit };
+  }, [shipments, settlements]);
 
   const kpis = [
     { icon: Package, label: t.totalShipments, value: shipments.length, color: '#4F8EF7', isAmount: false },
-    { icon: CircleDollarSign, label: 'أرباح شركة الشحن', value: shippingCompanyProfit, color: '#10B981', isAmount: true },
-    { icon: Landmark, label: 'إجمالي أرباح المتاجر', value: sellersProfit, color: '#06B6D4', isAmount: true },
-    { icon: Wallet, label: 'المديونية (عند المناديب)', value: codAmount, color: '#A78BFA', isAmount: true },
-    { icon: Landmark, label: 'رصيد الخزنة المتاح', value: netSafeBalance, color: '#059669', isAmount: true, description: 'صافي الربح + مستحقات المتاجر التي لم تدفع بعد' },
-    { icon: CheckCircle, label: t.delivered, value: deliveredAll.length, color: '#10B981', isAmount: false },
-    { icon: Calendar, label: t.todayShipments, value: todayShipments.length, color: '#06B6D4', isAmount: false },
-    { icon: Truck, label: t.onTheWay, value: onWay.length, color: '#F59E0B', isAmount: false, pulse: true },
+    { icon: CircleDollarSign, label: 'أرباح شركة الشحن', value: stats.shippingCompanyProfit, color: '#10B981', isAmount: true },
+    { icon: Landmark, label: 'إجمالي أرباح المتاجر', value: stats.sellersProfit, color: '#06B6D4', isAmount: true },
+    { icon: Wallet, label: 'المديونية (عند المناديب)', value: stats.codAmount, color: '#A78BFA', isAmount: true },
+    { icon: Landmark, label: 'رصيد الخزنة المتاح', value: stats.netSafeBalance, color: '#059669', isAmount: true, description: 'صافي الربح + مستحقات المتاجر التي لم تدفع بعد' },
+    { icon: CheckCircle, label: t.delivered, value: stats.deliveredAll.length, color: '#10B981', isAmount: false },
+    { icon: Calendar, label: t.todayShipments, value: stats.todayShipments.length, color: '#06B6D4', isAmount: false },
+    { icon: Truck, label: t.onTheWay, value: stats.onWay.length, color: '#F59E0B', isAmount: false, pulse: true },
   ];
 
   const statusData = [
@@ -86,13 +87,11 @@ const DashboardPage: React.FC = () => {
 
   const latest = [...shipments].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 10);
 
-  // Generate actual time-series data for the last 30 days based on true shipments
   const areaChartData = Array.from({ length: 30 }).map((_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (29 - i));
     const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     
-    // Compare explicitly by date matching to avoid fake or random data
     const dayShipments = shipments.filter(s => {
       const sDate = new Date(s.createdAt);
       return sDate.getDate() === d.getDate() && 
@@ -100,11 +99,17 @@ const DashboardPage: React.FC = () => {
              sDate.getFullYear() === d.getFullYear();
     });
     
-    return {
-      date: dateStr,
-      created: dayShipments.length,
-    };
+    return { date: dateStr, created: dayShipments.length };
   });
+
+  if (isLoading) {
+    return (
+      <div className="h-[60vh] flex flex-col items-center justify-center gap-4">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+        <p className="text-muted-foreground animate-pulse">جاري تحميل لفتحات البيانات...</p>
+      </div>
+    );
+  }
 
   return (
     <motion.div variants={pageVariants} initial="initial" animate="animate" className="space-y-6">

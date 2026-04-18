@@ -1,10 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
-import { db } from '@/db';
-import { generateId, generateTrackingId, generateVerificationCode, now } from '@/db/helpers';
-import type { Shipment, Courier, Seller, ShipmentEvent, Notification } from '@/db/schema';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api';
+import { generateTrackingId, generateVerificationCode } from '@/db/helpers';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -22,62 +22,95 @@ const CreateShipmentPage: React.FC = () => {
   const { t } = useTheme();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
+  const queryClient = useQueryClient();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [form, setForm] = useState({
     customerName: '', customerPhone: '', address: '', governorate: '', city: '',
     price: '', shippingFee: '', paymentType: 'COD' as 'COD' | 'paid', courierId: '', sellerId: '', notes: ''
   });
 
-  const couriers = useMemo(() => db.getAll<Courier>('couriers').filter(c => c.status === 'active'), []);
-  const sellers = useMemo(() => db.getAll<Seller>('sellers').filter(s => s.status === 'active'), []);
+  // Queries for selectors
+  const { data: couriers = [] } = useQuery({
+    queryKey: ['couriers'],
+    queryFn: api.couriers.getAll
+  });
+
+  const { data: sellers = [] } = useQuery({
+    queryKey: ['sellers'],
+    queryFn: api.sellers.getAll
+  });
+
+  const activeCouriers = couriers.filter(c => c.status === 'active');
+  const activeSellers = sellers.filter(s => s.status === 'active');
 
   const update = (key: string, value: string) => setForm(prev => ({ ...prev, [key]: value }));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.customerName || !form.customerPhone || !form.address || !form.governorate || !form.city || !form.price || !form.shippingFee) return;
-
-    setLoading(true);
-    await new Promise(r => setTimeout(r, 600));
-
-    const trackingId = generateTrackingId();
-    const shipmentId = generateId('SHP');
-    const verificationCode = generateVerificationCode();
-    const status = form.courierId && form.courierId !== 'none' ? 'assigned' : 'pending';
-
-    const shipment: Shipment = {
-      id: shipmentId, trackingId, verificationCode,
-      customerName: form.customerName, customerPhone: form.customerPhone,
-      address: form.address, city: form.city, governorate: form.governorate,
-      price: Number(form.price), shippingFee: Number(form.shippingFee), paymentType: form.paymentType, codCollected: false,
-      status, 
-      courierId: (form.courierId && form.courierId !== 'none') ? form.courierId : null,
-      sellerId: (form.sellerId && form.sellerId !== 'none') ? form.sellerId : null,
-      createdBy: user?.id || '',
-      notes: form.notes, createdAt: now(), updatedAt: now(),
-    };
-
-    db.create<Shipment>('shipments', shipment, 'SHP');
-
-    db.create<ShipmentEvent>('shipmentEvents', {
-      id: generateId('EVT'), shipmentId, status, actor: user?.name || '', actorRole: 'admin', timestamp: now(),
-    } as ShipmentEvent, 'EVT');
-
-    if (form.courierId && form.courierId !== 'none') {
-      const courier = db.getById<Courier>('couriers', form.courierId);
-      if (courier) {
-        db.create<Notification>('notifications', {
-          id: generateId('NTF'), targetRole: 'courier', targetUserId: courier.userId,
-          type: 'info', title: t.newShipment, message: `${trackingId} — ${form.customerName}`,
-          read: false, link: `/courier/shipments`, createdAt: now(),
-        } as Notification, 'NTF');
-      }
+    if (!form.customerName || !form.customerPhone || !form.address || !form.governorate || !form.city || !form.price || !form.shippingFee) {
+        toast.error('يرجى ملء جميع الحقول المطلوبة');
+        return;
     }
 
-    setLoading(false);
-    toast.success(t.shipmentCreated);
-    navigate('/shipments');
+    setIsSubmitting(true);
+    
+    try {
+      const trackingId = generateTrackingId();
+      const verificationCode = generateVerificationCode();
+      const status = form.courierId && form.courierId !== 'none' ? 'assigned' : 'pending';
+
+      const newShipment = await api.shipments.create({
+        trackingId, 
+        verificationCode,
+        customerName: form.customerName, 
+        customerPhone: form.customerPhone,
+        address: form.address, 
+        city: form.city, 
+        governorate: form.governorate,
+        price: Number(form.price), 
+        shippingFee: Number(form.shippingFee), 
+        paymentType: form.paymentType,
+        status, 
+        courierId: (form.courierId && form.courierId !== 'none') ? form.courierId : null,
+        sellerId: (form.sellerId && form.sellerId !== 'none') ? form.sellerId : null,
+        createdBy: user?.id || null,
+        notes: form.notes
+      });
+
+      // Add timeline event
+      await api.shipments.addEvent({
+        shipmentId: newShipment.id,
+        status,
+        actor: user?.id || null,
+        actorRole: 'admin',
+        notes: 'تم إنشاء الشحنة بنجاح'
+      });
+
+      // Notify courier if assigned
+      if (form.courierId && form.courierId !== 'none') {
+        const courier = activeCouriers.find(c => c.id === form.courierId);
+        if (courier) {
+          await api.notifications.create({
+            targetRole: 'courier',
+            targetUserId: courier.userId,
+            type: 'info',
+            title: t.newShipment,
+            message: `${trackingId} — ${form.customerName}`,
+            link: `/courier/shipments`
+          });
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['shipments'] });
+      toast.success(t.shipmentCreated);
+      navigate('/shipments');
+    } catch (err) {
+      console.error(err);
+      toast.error('حدث خطأ أثناء إنشاء الشحنة');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -145,7 +178,7 @@ const CreateShipmentPage: React.FC = () => {
                 <SelectTrigger className="rounded-xl mt-1"><SelectValue placeholder={t.noAssignment} /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">{t.noAssignment}</SelectItem>
-                  {couriers.map(c => <SelectItem key={c.id} value={c.id}>{c.name} — {c.zone}</SelectItem>)}
+                  {activeCouriers.map(c => <SelectItem key={c.id} value={c.id}>{c.name} — {c.zone}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -155,7 +188,7 @@ const CreateShipmentPage: React.FC = () => {
                 <SelectTrigger className="rounded-xl mt-1"><SelectValue placeholder={t.selectSeller} /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">{t.noSeller}</SelectItem>
-                  {sellers.map(s => <SelectItem key={s.id} value={s.id}>{s.storeName}</SelectItem>)}
+                  {activeSellers.map(s => <SelectItem key={s.id} value={s.id}>{s.storeName}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -168,8 +201,8 @@ const CreateShipmentPage: React.FC = () => {
 
         <div className="mt-6 flex justify-end">
           <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}>
-            <Button type="submit" disabled={loading} className="rounded-xl px-8 h-11">
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : t.createButton}
+            <Button type="submit" disabled={isSubmitting} className="rounded-xl px-8 h-11">
+              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : t.createButton}
             </Button>
           </motion.div>
         </div>

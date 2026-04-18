@@ -1,20 +1,22 @@
 import React from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import { db } from '@/db';
-import type { Shipment, Seller } from '@/db/schema';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 import { motion } from 'framer-motion';
-import { Package, Truck, CheckCircle, AlertCircle, Clock, CircleDollarSign } from 'lucide-react';
+import { Package, Truck, CheckCircle, CircleDollarSign, Loader2, ArrowLeftRight } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { formatCurrency } from '@/utils/formatters';
 
 const SellerDashboardPage = () => {
-  const { user } = useAuth();
+  const { user, sellerProfile } = useAuth();
   const { t } = useTheme();
 
-  const seller = db.getAll<Seller>('sellers').find(s => s.userId === user?.id);
-  const sellerId = seller?.id || '';
-  const shipments = db.query<Shipment>('shipments', s => s.sellerId === sellerId);
+  const { data: shipments = [], isLoading } = useQuery({
+    queryKey: ['seller_shipments', sellerProfile?.id],
+    queryFn: () => sellerProfile?.id ? api.shipments.getBySellerId(sellerProfile.id) : Promise.resolve([]),
+    enabled: !!sellerProfile?.id
+  });
 
   const stats = {
     total: shipments.length,
@@ -25,19 +27,28 @@ const SellerDashboardPage = () => {
   };
 
   const statCards = [
-    { title: "إجمالي الأرباح المستلمة", value: formatCurrency(stats.revenue) + " ج.م", icon: CircleDollarSign, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+    { title: "إجمالي الأرباح المتوقعة", value: formatCurrency(stats.revenue) + " " + t.egp, icon: CircleDollarSign, color: "text-emerald-500", bg: "bg-emerald-500/10" },
     { title: "إجمالي الشحنات", value: stats.total, icon: Package, color: "text-blue-500", bg: "bg-blue-500/10" },
-    { title: "جاري التوصيل", value: stats.inTransit, icon: Truck, color: "text-purple-500", bg: "bg-purple-500/10" },
+    { title: "جاري التوصيل", value: stats.inTransit, icon: Truck, color: "text-amber-500", bg: "bg-amber-500/10" },
     { title: "تم التوصيل", value: stats.delivered, icon: CheckCircle, color: "text-green-500", bg: "bg-green-500/10" },
   ];
 
+  if (isLoading) {
+    return (
+        <div className="h-[60vh] flex flex-col items-center justify-center gap-4">
+            <Loader2 className="w-10 h-10 animate-spin text-primary" />
+            <p className="text-muted-foreground animate-pulse">جاري تحميل لوحة التحكم...</p>
+        </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir="rtl">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">مرحباً، {user?.name}</h1>
+        <h1 className="text-2xl font-bold text-right">مرحباً، {user?.name} 👋</h1>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map((stat, i) => (
           <motion.div
             key={i}
@@ -45,13 +56,13 @@ const SellerDashboardPage = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
           >
-            <Card>
+            <Card className="border-none shadow-sm overflow-hidden group hover:shadow-md transition-shadow">
               <CardContent className="p-6 flex items-center justify-between">
-                <div>
+                <div className="text-right">
                   <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
-                  <h3 className="text-2xl font-bold mt-2">{stat.value}</h3>
+                  <h3 className="text-2xl font-black mt-2 tracking-tight">{stat.value}</h3>
                 </div>
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${stat.bg}`}>
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${stat.bg} group-hover:scale-110 transition-transform`}>
                   <stat.icon className={`w-6 h-6 ${stat.color}`} />
                 </div>
               </CardContent>
@@ -60,26 +71,31 @@ const SellerDashboardPage = () => {
         ))}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>أحدث الشحنات</CardTitle>
+      <Card className="border-none shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-lg font-bold">أحدث الشحنات</CardTitle>
+          <ArrowLeftRight className="w-4 h-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
           {shipments.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">لا توجد شحنات بعد</div>
+            <div className="text-center py-12 text-muted-foreground">
+                <Package className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                لا توجد شحنات بعد
+            </div>
           ) : (
             <div className="space-y-4">
-              {shipments.slice(-5).reverse().map(shipment => (
-                <div key={shipment.id} className="flex justify-between items-center p-4 border rounded-lg">
-                  <div>
-                    <p className="font-semibold">{shipment.trackingId}</p>
-                    <p className="text-sm text-muted-foreground">{shipment.customerName} - {shipment.city}</p>
+              {shipments.slice(0, 5).map(shipment => (
+                <div key={shipment.id} className="flex justify-between items-center p-4 border border-muted/30 rounded-2xl hover:bg-muted/10 transition-colors">
+                  <div className="text-right">
+                    <p className="font-bold font-mono-nums">{shipment.trackingId}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{shipment.customerName} • {shipment.city}</p>
                   </div>
-                  <div>
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${
-                      shipment.status === 'delivered' ? 'bg-green-100 text-green-700' :
-                      shipment.status === 'pending' ? 'bg-orange-100 text-orange-700' :
-                      'bg-blue-100 text-blue-700'
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm font-bold font-mono-nums">{formatCurrency(shipment.price)} {t.egp}</span>
+                    <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                      shipment.status === 'delivered' ? 'bg-emerald-500/10 text-emerald-500' :
+                      shipment.status === 'pending' ? 'bg-amber-500/10 text-amber-500' :
+                      'bg-blue-500/10 text-blue-500'
                     }`}>
                       {t[`status_${shipment.status}`] || shipment.status}
                     </span>

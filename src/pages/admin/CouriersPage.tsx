@@ -1,10 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { useTheme } from '@/context/ThemeContext';
-import { db } from '@/db';
-import { generateId, hashPassword, now } from '@/db/helpers';
-import type { Courier, User, Shipment } from '@/db/schema';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api';
+import { adminService } from '@/services/adminService';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { Plus, Search, Truck, Grid3X3, List, ExternalLink } from 'lucide-react';
+import { Plus, Search, Truck, Grid3X3, List, ExternalLink, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,41 +17,52 @@ import { formatCurrency } from '@/utils/formatters';
 const CouriersPage: React.FC = () => {
   const { t } = useTheme();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [modalOpen, setModalOpen] = useState(false);
-  const [refresh, setRefresh] = useState(0);
   const [search, setSearch] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
 
-  const couriers = useMemo(() => db.getAll<Courier>('couriers'), [refresh]);
-  const shipments = useMemo(() => db.getAll<Shipment>('shipments'), [refresh]);
+  // Queries
+  const { data: couriers = [], isLoading: courierLoading } = useQuery({ queryKey: ['couriers'], queryFn: api.couriers.getAll });
+  const { data: shipments = [], isLoading: shipLoading } = useQuery({ queryKey: ['shipments'], queryFn: api.shipments.getAll });
+
+  const isLoading = courierLoading || shipLoading;
 
   const filtered = couriers.filter(c => !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search));
 
   const [form, setForm] = useState({ name: '', phone: '', zone: '', vehicleType: 'motorcycle', email: '', password: '', notes: '' });
   const updateForm = (k: string, v: string) => setForm(prev => ({ ...prev, [k]: v }));
 
-  const handleCreate = () => {
-    if (!form.name || !form.phone || !form.zone || !form.email || !form.password) return;
+  const handleCreate = async () => {
+    if (!form.name || !form.phone || !form.zone || !form.email || !form.password) {
+      toast.error('يرجى ملء كافة الحقول المطلوبة');
+      return;
+    }
 
-    // Create User
-    const userId = generateId('USR');
-    db.create<User>('users', {
-      id: userId, name: form.name, email: form.email,
-      passwordHash: hashPassword(form.password), role: 'courier',
-      phone: form.phone, status: 'active', createdAt: now(), updatedAt: now(),
-    } as User, 'USR');
+    setIsCreating(true);
+    try {
+      await adminService.createUser({
+        email: form.email,
+        password: form.password,
+        name: form.name,
+        role: 'courier',
+        phone: form.phone,
+        zone: form.zone,
+        vehicleType: form.vehicleType,
+        notes: form.notes
+      });
 
-    // Create Courier
-    db.create<Courier>('couriers', {
-      id: generateId('COU'), userId, name: form.name, phone: form.phone,
-      zone: form.zone, vehicleType: form.vehicleType as any,
-      status: 'active', joinDate: now(), notes: form.notes || undefined,
-    } as Courier, 'COU');
-
-    toast.success(`${t.courierCreated}: ${form.name}`);
-    setForm({ name: '', phone: '', zone: '', vehicleType: 'motorcycle', email: '', password: '', notes: '' });
-    setModalOpen(false);
-    setRefresh(r => r + 1);
+      toast.success(`${t.courierCreated}: ${form.name}`);
+      queryClient.invalidateQueries({ queryKey: ['couriers'] });
+      setForm({ name: '', phone: '', zone: '', vehicleType: 'motorcycle', email: '', password: '', notes: '' });
+      setModalOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || 'حدث خطأ أثناء إنشاء الحساب');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const getCourierStats = (courierId: string) => {
@@ -61,19 +72,24 @@ const CouriersPage: React.FC = () => {
     const returned = cs.filter(s => s.status === 'returned').length;
     const rate = cs.length > 0 ? Math.round((delivered / cs.length) * 100) : 0;
     
-    const pendingCodShipments = cs.filter(s => s.status === 'delivered' && s.paymentType === 'COD' && !s.codCollected && s.price > 0);
+    const pendingCodShipments = cs.filter(s => s.status === 'delivered' && s.paymentType === 'COD' && !s.codCollected);
     const pendingAmount = pendingCodShipments.reduce((sum, s) => sum + s.price + (s.shippingFee || 0), 0);
 
-    const goodsInTransitShipments = cs.filter(s => ['assigned', 'out_for_delivery'].includes(s.status) && s.paymentType === 'COD' && s.price > 0);
+    const goodsInTransitShipments = cs.filter(s => ['assigned', 'out_for_delivery'].includes(s.status) && s.paymentType === 'COD');
     const goodsInTransitAmount = goodsInTransitShipments.reduce((sum, s) => sum + s.price + (s.shippingFee || 0), 0);
 
     const totalCustody = pendingAmount + goodsInTransitAmount;
-
     return { assigned, delivered, returned, rate, total: cs.length, pendingAmount, goodsInTransitAmount, totalCustody };
   };
 
   return (
-    <div className="space-y-4 animate-fade-in">
+    <div className="space-y-4 animate-fade-in relative">
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-20 min-h-[400px]">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">{t.couriers} ({couriers.length})</h2>
         <div className="flex items-center gap-2">
@@ -94,7 +110,7 @@ const CouriersPage: React.FC = () => {
         <Input placeholder={t.search} value={search} onChange={e => setSearch(e.target.value)} className="ps-9 rounded-xl" />
       </div>
 
-      {filtered.length === 0 ? (
+      {filtered.length === 0 && !isLoading ? (
         <EmptyState icon={<Truck className="w-8 h-8 text-muted-foreground" />} title={t.addFirstCourier} actionLabel={t.addCourier} onAction={() => setModalOpen(true)} />
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -112,7 +128,7 @@ const CouriersPage: React.FC = () => {
                     </div>
                     <div>
                       <p className="font-semibold">{c.name}</p>
-                      <p className="text-xs text-muted-foreground">● {t[c.status]} · {c.zone}</p>
+                      <p className="text-xs text-muted-foreground">● {t[c.status as keyof typeof t] || c.status} · {c.zone}</p>
                     </div>
                   </div>
                   <Button variant="ghost" size="icon" onClick={() => navigate(`/couriers/${c.id}`)} className="rounded-full w-9 h-9">
@@ -212,12 +228,12 @@ const CouriersPage: React.FC = () => {
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>{t.addCourier}</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <div><Label>{t.courierName} *</Label><Input value={form.name} onChange={e => updateForm('name', e.target.value)} className="rounded-xl mt-1" /></div>
-            <div><Label>{t.phone} *</Label><Input value={form.phone} onChange={e => updateForm('phone', e.target.value)} className="rounded-xl mt-1" /></div>
-            <div><Label>{t.zone} *</Label><Input value={form.zone} onChange={e => updateForm('zone', e.target.value)} className="rounded-xl mt-1" /></div>
+            <div><Label>{t.courierName} *</Label><Input value={form.name} onChange={e => updateForm('name', e.target.value)} disabled={isCreating} className="rounded-xl mt-1" /></div>
+            <div><Label>{t.phone} *</Label><Input value={form.phone} onChange={e => updateForm('phone', e.target.value)} disabled={isCreating} className="rounded-xl mt-1" /></div>
+            <div><Label>{t.zone} *</Label><Input value={form.zone} onChange={e => updateForm('zone', e.target.value)} disabled={isCreating} className="rounded-xl mt-1" /></div>
             <div>
               <Label>{t.vehicleType}</Label>
-              <Select value={form.vehicleType} onValueChange={v => updateForm('vehicleType', v)}>
+              <Select value={form.vehicleType} onValueChange={v => updateForm('vehicleType', v)} disabled={isCreating}>
                 <SelectTrigger className="rounded-xl mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="motorcycle">{t.motorcycle}</SelectItem>
@@ -228,12 +244,15 @@ const CouriersPage: React.FC = () => {
             </div>
             <hr />
             <p className="text-xs text-muted-foreground">{t.loginDesc}</p>
-            <div><Label>{t.email} *</Label><Input type="email" value={form.email} onChange={e => updateForm('email', e.target.value)} className="rounded-xl mt-1" /></div>
-            <div><Label>{t.password} *</Label><Input type="password" value={form.password} onChange={e => updateForm('password', e.target.value)} className="rounded-xl mt-1" /></div>
+            <div><Label>{t.email} *</Label><Input type="email" value={form.email} onChange={e => updateForm('email', e.target.value)} disabled={isCreating} className="rounded-xl mt-1" /></div>
+            <div><Label>{t.password} *</Label><Input type="password" value={form.password} onChange={e => updateForm('password', e.target.value)} disabled={isCreating} className="rounded-xl mt-1" /></div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setModalOpen(false)}>{t.cancel}</Button>
-            <Button onClick={handleCreate} className="rounded-xl">{t.addCourier}</Button>
+            <Button variant="ghost" onClick={() => setModalOpen(false)} disabled={isCreating}>{t.cancel}</Button>
+            <Button onClick={handleCreate} disabled={isCreating} className="rounded-xl">
+              {isCreating ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : <Plus className="w-4 h-4 me-2" />}
+              {t.addCourier}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

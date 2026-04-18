@@ -1,19 +1,20 @@
 import React, { useState, useMemo } from 'react';
 import { useTheme } from '@/context/ThemeContext';
-import { db } from '@/db';
-import { generateId, now } from '@/db/helpers';
-import type { Courier, Seller, Shipment, Settlement } from '@/db/schema';
-import { formatCurrency, formatDateTime } from '@/utils/formatters';
+import { useAuth } from '@/context/AuthContext';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api';
+import { now } from '@/db/helpers';
+import type { Shipment } from '@/db/schema';
+import { formatCurrency } from '@/utils/formatters';
 import { 
   Wallet, 
   Truck, 
   Store, 
   CheckCircle, 
-  Clock, 
   Package, 
   Receipt,
   Search,
-  Filter
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,15 +26,17 @@ import { pageVariants, cardVariants } from '@/animations/variants';
 import { useNavigate } from 'react-router-dom';
 
 const SettlementsPage: React.FC = () => {
-    const { t, lang } = useTheme();
+    const { t } = useTheme();
+    const { user } = useAuth();
     const navigate = useNavigate();
-    const [refresh, setRefresh] = useState(0);
+    const queryClient = useQueryClient();
     const [search, setSearch] = useState('');
+    const [isSettling, setIsSettling] = useState<string | null>(null);
 
-    const couriers = useMemo(() => db.getAll<Courier>('couriers'), [refresh]);
-    const sellers = useMemo(() => db.getAll<Seller>('sellers'), [refresh]);
-    const shipments = useMemo(() => db.getAll<Shipment>('shipments'), [refresh]);
-    const settlements = useMemo(() => db.getAll<Settlement>('settlements').sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [refresh]);
+    // Queries
+    const { data: couriers = [], isLoading: couriersLoading } = useQuery({ queryKey: ['couriers'], queryFn: api.couriers.getAll });
+    const { data: sellers = [], isLoading: sellersLoading } = useQuery({ queryKey: ['sellers'], queryFn: api.sellers.getAll });
+    const { data: shipments = [], isLoading: shipmentsLoading } = useQuery({ queryKey: ['shipments'], queryFn: api.shipments.getAll });
 
     // Courier Stats Calculation
     const courierData = useMemo(() => {
@@ -52,7 +55,7 @@ const SettlementsPage: React.FC = () => {
             };
         }).filter(c => !search || c.name.toLowerCase().includes(search.toLowerCase()))
         .sort((a, b) => b.pendingAmount - a.pendingAmount);
-    }, [couriers, shipments, search, refresh]);
+    }, [couriers, shipments, search]);
 
     // Seller Stats Calculation
     const sellerData = useMemo(() => {
@@ -81,51 +84,72 @@ const SettlementsPage: React.FC = () => {
             };
         }).filter(s => !search || s.storeName.toLowerCase().includes(search.toLowerCase()))
         .sort((a, b) => b.pendingAmount - a.pendingAmount);
-    }, [sellers, shipments, search, refresh]);
+    }, [sellers, shipments, search]);
 
-    const handleCourierSettle = (courier: any) => {
+    const handleCourierSettle = async (courier: any) => {
         if (courier.pendingAmount <= 0) return toast.info("لا توجد نقدية للتوريد حالياً.");
+        setIsSettling(courier.id);
 
-        courier.pendingShipments.forEach((s: Shipment) => {
-            db.update('shipments', s.id, { codCollected: true });
-        });
+        try {
+            const shipmentIds = courier.pendingShipments.map((s: Shipment) => s.id);
+            await api.shipments.bulkUpdate(shipmentIds, { codCollected: true, updatedAt: now() });
 
-        db.create<Settlement>('settlements', {
-            id: generateId('STL'),
-            courierId: courier.id,
-            amount: courier.pendingAmount,
-            shipmentCount: courier.pendingShipments.length,
-            date: now(),
-            adminName: 'Admin',
-        } as Settlement, 'STL');
+            await api.settlements.create({
+                courierId: courier.id,
+                amount: courier.pendingAmount,
+                shipmentCount: courier.pendingShipments.length,
+                date: now(),
+                adminId: user?.id || 'admin',
+                adminName: user?.name || 'Admin'
+            });
 
-        toast.success(`تم استلام ${formatCurrency(courier.pendingAmount)} ج من ${courier.name}`);
-        setRefresh(r => r + 1);
-    };
-
-    const handleSellerSettle = (seller: any) => {
-        if (seller.pendingAmount === 0 && seller.pendingSettlements.length === 0) return toast.info("لا توجد مستحقات للتاجر حالياً.");
-
-        seller.pendingSettlements.forEach((s: Shipment) => {
-            db.update('shipments', s.id, { sellerSettled: true });
-        });
-
-        db.create<Settlement>('settlements', {
-            id: generateId('STL'),
-            sellerId: seller.id,
-            amount: seller.pendingAmount,
-            shipmentCount: seller.pendingSettlements.length,
-            date: now(),
-            adminName: 'Admin',
-        } as Settlement, 'STL');
-
-        if (seller.pendingAmount >= 0) {
-            toast.success(`تم تسوية ${formatCurrency(seller.pendingAmount)} ج لـ ${seller.storeName}`);
-        } else {
-            toast.success(`تم تحصيل ${formatCurrency(Math.abs(seller.pendingAmount))} ج من ${seller.storeName} نظير شحنات مدفوعة/مرتجعة`);
+            toast.success(`تم استلام ${formatCurrency(courier.pendingAmount)} ج من ${courier.name}`);
+            queryClient.invalidateQueries({ queryKey: ['shipments'] });
+            queryClient.invalidateQueries({ queryKey: ['settlements'] });
+        } catch (error) {
+            toast.error('حدث خطأ أثناء التوريد');
+        } finally {
+            setIsSettling(null);
         }
-        setRefresh(r => r + 1);
     };
+
+    const handleSellerSettle = async (seller: any) => {
+        if (seller.pendingAmount === 0 && seller.pendingSettlements.length === 0) return toast.info("لا توجد مستحقات للتاجر حالياً.");
+        setIsSettling(seller.id);
+
+        try {
+            const shipmentIds = seller.pendingSettlements.map((s: Shipment) => s.id);
+            await api.shipments.bulkUpdate(shipmentIds, { sellerSettled: true, updatedAt: now() });
+
+            await api.settlements.create({
+                sellerId: seller.id,
+                amount: seller.pendingAmount,
+                shipmentCount: seller.pendingSettlements.length,
+                date: now(),
+                adminId: user?.id || 'admin',
+                adminName: user?.name || 'Admin'
+            });
+
+            if (seller.pendingAmount >= 0) {
+                toast.success(`تم تسوية ${formatCurrency(seller.pendingAmount)} ج لـ ${seller.storeName}`);
+            } else {
+                toast.success(`تم تحصيل ${formatCurrency(Math.abs(seller.pendingAmount))} ج من ${seller.storeName} نظير شحنات مدفوعة/مرتجعة`);
+            }
+            queryClient.invalidateQueries({ queryKey: ['shipments'] });
+            queryClient.invalidateQueries({ queryKey: ['settlements'] });
+        } catch (error) {
+            toast.error('حدث خطأ أثناء التسوية');
+        } finally {
+            setIsSettling(null);
+        }
+    };
+
+    if (couriersLoading || sellersLoading || shipmentsLoading) return (
+        <div className="flex flex-col items-center justify-center min-h-[400px]">
+            <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
+            <p className="text-muted-foreground">جاري تحميل بيانات التسويات...</p>
+        </div>
+    );
 
     return (
         <motion.div variants={pageVariants} initial="initial" animate="animate" dir="rtl" className="space-y-6 text-right">
@@ -197,10 +221,11 @@ const SettlementsPage: React.FC = () => {
 
                                         <Button 
                                             onClick={() => handleCourierSettle(c)}
-                                            disabled={c.pendingAmount === 0}
+                                            disabled={c.pendingAmount === 0 || isSettling === c.id}
                                             className="w-full rounded-xl gap-2 font-bold"
                                         >
-                                            <CheckCircle className="w-4 h-4" /> {t.confirmCollection}
+                                            {isSettling === c.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                                            {t.confirmCollection}
                                         </Button>
                                     </CardContent>
                                 </Card>
@@ -247,10 +272,10 @@ const SettlementsPage: React.FC = () => {
                                         <Button 
                                             variant={s.pendingAmount >= 0 ? "secondary" : "destructive"}
                                             onClick={() => handleSellerSettle(s)}
-                                            disabled={s.pendingAmount === 0 && s.pendingSettlements.length === 0}
+                                            disabled={(s.pendingAmount === 0 && s.pendingSettlements.length === 0) || isSettling === s.id}
                                             className={`w-full rounded-xl gap-2 font-bold ${s.pendingAmount >= 0 ? 'bg-emerald-600 text-white hover:bg-emerald-700' : ''}`}
                                         >
-                                            <CheckCircle className="w-4 h-4" /> 
+                                            {isSettling === s.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
                                             {s.pendingAmount >= 0 ? 'تسوية الأرباح للتاجر' : 'تحصيل المديونية من التاجر'}
                                         </Button>
                                     </CardContent>

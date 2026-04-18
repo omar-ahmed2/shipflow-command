@@ -1,12 +1,12 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import { db } from '@/db';
-import type { Shipment } from '@/db/schema';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { Package, Truck, CheckCircle, Wallet, Phone, MapPin } from 'lucide-react';
+import { Package, Truck, CheckCircle, Wallet, Phone, MapPin, Loader2 } from 'lucide-react';
 import { formatCurrency, isToday } from '@/utils/formatters';
 import { motion } from 'framer-motion';
 import { cardVariants, pageVariants } from '@/animations/variants';
@@ -17,10 +17,11 @@ const CourierHomePage: React.FC = () => {
   const { t } = useTheme();
   const navigate = useNavigate();
 
-  const shipments = useMemo(() => {
-    if (!courierProfile) return [];
-    return db.query<Shipment>('shipments', s => s.courierId === courierProfile.id);
-  }, [courierProfile]);
+  const { data: shipments = [], isLoading } = useQuery({
+    queryKey: ['shipments', 'courier', courierProfile?.id],
+    queryFn: () => courierProfile ? api.shipments.getByCourierId(courierProfile.id) : Promise.resolve([]),
+    enabled: !!courierProfile
+  });
 
   const todayShips = shipments.filter(s => isToday(s.createdAt) || ['assigned', 'out_for_delivery'].includes(s.status));
   const assigned = todayShips.filter(s => s.status === 'assigned').length;
@@ -37,21 +38,30 @@ const CourierHomePage: React.FC = () => {
 
   const activeShipments = shipments.filter(s => ['assigned', 'out_for_delivery'].includes(s.status));
 
+  if (isLoading) {
+    return (
+        <div className="h-[60vh] flex flex-col items-center justify-center gap-4">
+            <Loader2 className="w-10 h-10 animate-spin text-primary" />
+            <p className="text-muted-foreground animate-pulse">جاري تحميل يوميتك...</p>
+        </div>
+    );
+  }
+
   return (
-    <motion.div variants={pageVariants} initial="initial" animate="animate" className="space-y-4">
-      <h2 className="text-lg font-bold">{t.yourDay} {user?.name} 📦</h2>
+    <motion.div variants={pageVariants} initial="initial" animate="animate" className="space-y-4" dir="rtl">
+      <h2 className="text-lg font-bold text-right">{t.yourDay} {user?.name} 📦</h2>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {kpis.map((kpi, i) => (
           <motion.div key={i} custom={i} variants={cardVariants} initial="initial" animate="animate"
-            className="courier-card p-4 relative overflow-hidden">
+            className="courier-card p-4 relative overflow-hidden text-right">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-2"
               style={{ background: `${kpi.color}15` }}>
               <kpi.icon className="w-4 h-4" style={{ color: kpi.color }} />
             </div>
             <p className="text-xl font-bold font-mono-nums">
               {(kpi as any).isAmount
-                ? <CountUp end={kpi.value} duration={1.2} separator="," />
+                ? <><CountUp end={kpi.value} duration={1.2} separator="," /> <span className="text-[10px]">{t.egp}</span></>
                 : <CountUp end={kpi.value} duration={0.8} />
               }
             </p>
@@ -60,7 +70,7 @@ const CourierHomePage: React.FC = () => {
         ))}
       </div>
 
-      <h3 className="font-semibold text-sm mt-4">{t.todayShipmentsList}</h3>
+      <h3 className="font-semibold text-sm mt-4 text-right">{t.todayShipmentsList}</h3>
       {activeShipments.length === 0 ? (
         <EmptyState title={t.noShipments} />
       ) : (
@@ -74,12 +84,12 @@ const CourierHomePage: React.FC = () => {
                 <span className="font-mono-nums text-xs text-muted-foreground">{s.trackingId}</span>
                 <StatusBadge status={s.status} />
               </div>
-              <div className="p-4 space-y-3">
+              <div className="p-4 space-y-3 text-right">
                 <p className="font-semibold">{s.customerName}</p>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <MapPin className="w-3 h-3" style={{ color: 'hsl(var(--primary))' }} /> {s.city} — {s.address}
+                <div className="flex items-center gap-1 text-xs text-muted-foreground justify-end">
+                  {s.city} — {s.address} <MapPin className="w-3 h-3" style={{ color: 'hsl(var(--primary))' }} />
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-row-reverse">
                   <span className="font-mono-nums font-bold">{formatCurrency(s.price + (s.shippingFee || 0))} {t.egp}</span>
                   <span className="text-xs px-2 py-0.5 rounded-lg"
                     style={s.paymentType === 'COD'

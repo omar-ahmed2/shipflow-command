@@ -1,12 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/context/ThemeContext';
-import { db } from '@/db';
-import type { Shipment, Courier, ShipmentStatus, Seller } from '@/db/schema';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
-import { Plus, Search, X, Trash2, Eye, UserPlus } from 'lucide-react';
+import { Plus, Search, X, Trash2, Eye, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -16,12 +16,13 @@ import { formatDate, formatCurrency } from '@/utils/formatters';
 import { motion } from 'framer-motion';
 import { pageVariants } from '@/animations/variants';
 
-const STATUSES: ShipmentStatus[] = ['pending', 'assigned', 'out_for_delivery', 'delivered', 'returned', 'cancelled'];
+const STATUSES: string[] = ['pending', 'assigned', 'out_for_delivery', 'delivered', 'returned', 'cancelled'];
 const PAGE_SIZE = 15;
 
 const ShipmentsPage: React.FC = () => {
   const { t, lang } = useTheme();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -30,11 +31,24 @@ const ShipmentsPage: React.FC = () => {
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [refresh, setRefresh] = useState(0);
 
-  const shipments = useMemo(() => db.getAll<Shipment>('shipments'), [refresh]);
-  const couriers = useMemo(() => db.getAll<Courier>('couriers'), [refresh]);
-  const sellers = useMemo(() => db.getAll<Seller>('sellers'), [refresh]);
+  // Queries
+  const { data: shipments = [], isLoading: shipLoading } = useQuery({
+    queryKey: ['shipments'],
+    queryFn: api.shipments.getAll
+  });
+
+  const { data: couriers = [], isLoading: courierLoading } = useQuery({
+    queryKey: ['couriers'],
+    queryFn: api.couriers.getAll
+  });
+
+  const { data: sellers = [], isLoading: sellerLoading } = useQuery({
+    queryKey: ['sellers'],
+    queryFn: api.sellers.getAll
+  });
+
+  const isLoading = shipLoading || courierLoading || sellerLoading;
 
   const filtered = useMemo(() => {
     return shipments
@@ -59,19 +73,22 @@ const ShipmentsPage: React.FC = () => {
     return c?.name || '—';
   };
 
-  const getSellerName = (id?: string) => {
+  const getSellerName = (id?: string | null) => {
     if (!id) return 'الشركة (الأدمن)';
     const s = sellers.find(x => x.id === id);
     return s?.storeName || 'متجر غير معروف';
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleteId) return;
-    db.delete('shipments', deleteId);
-    db.query<any>('shipmentEvents', e => e.shipmentId === deleteId).forEach(e => db.delete('shipmentEvents', e.id));
-    toast.success(t.confirm);
+    try {
+      await api.shipments.delete(deleteId);
+      toast.success(t.confirm);
+      queryClient.invalidateQueries({ queryKey: ['shipments'] });
+    } catch (err) {
+      toast.error('حدث خطأ أثناء الحذف');
+    }
     setDeleteId(null);
-    setRefresh(r => r + 1);
   };
 
   const toggleSelect = (id: string) => {
@@ -133,11 +150,15 @@ const ShipmentsPage: React.FC = () => {
       {selected.size > 0 && (
         <div className="flex items-center gap-3 p-3 bg-primary/5 rounded-xl border border-primary/20">
           <span className="text-sm font-medium">{selected.size} {t.selected}</span>
-          <Button variant="destructive" size="sm" onClick={() => {
-            selected.forEach(id => db.delete('shipments', id));
-            setSelected(new Set());
-            setRefresh(r => r + 1);
-            toast.success(t.confirm);
+          <Button variant="destructive" size="sm" onClick={async () => {
+            try {
+              await Promise.all(Array.from(selected).map(id => api.shipments.delete(id)));
+              setSelected(new Set());
+              queryClient.invalidateQueries({ queryKey: ['shipments'] });
+              toast.success(t.confirm);
+            } catch (err) {
+              toast.error('حدث خطأ أثناء الحذف');
+            }
           }}>
             <Trash2 className="w-3 h-3 me-1" /> {t.delete}
           </Button>
@@ -145,8 +166,12 @@ const ShipmentsPage: React.FC = () => {
       )}
 
       {/* Table */}
-      <div className="admin-card overflow-hidden">
-        {paged.length === 0 ? (
+      <div className="admin-card overflow-hidden min-h-[400px] relative">
+        {isLoading ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : paged.length === 0 ? (
           <EmptyState title={t.noShipments} description={shipments.length === 0 ? t.startAddingShipments : t.noResults}
             actionLabel={shipments.length === 0 ? t.addFirstShipment : undefined}
             onAction={shipments.length === 0 ? () => navigate('/shipments/create') : undefined} />

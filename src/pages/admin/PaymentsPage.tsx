@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { useTheme } from '@/context/ThemeContext';
-import { db } from '@/db';
-import type { Shipment, Courier } from '@/db/schema';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api';
+import { now } from '@/db/helpers';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { Wallet, CheckCircle, Clock, Package } from 'lucide-react';
+import { Wallet, CheckCircle, Clock, Package, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { formatCurrency } from '@/utils/formatters';
@@ -14,27 +15,57 @@ import CountUp from 'react-countup';
 
 const PaymentsPage: React.FC = () => {
   const { t } = useTheme();
-  const [refresh, setRefresh] = useState(0);
+  const queryClient = useQueryClient();
+  const [isUpdating, setIsUpdating] = useState<string | null>(null);
 
-  const shipments = useMemo(() => db.getAll<Shipment>('shipments'), [refresh]);
-  const couriers = useMemo(() => db.getAll<Courier>('couriers'), [refresh]);
-  const codShipments = shipments.filter(s => s.paymentType === 'COD' && s.status !== 'cancelled');
+  const { data: shipments = [], isLoading: shipmentsLoading } = useQuery({
+    queryKey: ['shipments'],
+    queryFn: api.shipments.getAll
+  });
 
-  const totalExpected = codShipments.reduce((s, sh) => s + sh.price + (sh.shippingFee || 0), 0);
-  const totalCollected = codShipments.filter(s => s.codCollected).reduce((s, sh) => s + sh.price + (sh.shippingFee || 0), 0);
+  const { data: couriers = [], isLoading: couriersLoading } = useQuery({
+    queryKey: ['couriers'],
+    queryFn: api.couriers.getAll
+  });
+
+  const codShipments = useMemo(() => 
+    shipments.filter(s => s.paymentType === 'COD' && s.status !== 'cancelled'),
+    [shipments]
+  );
+
+  const totalExpected = useMemo(() => 
+    codShipments.reduce((s, sh) => s + sh.price + (sh.shippingFee || 0), 0),
+    [codShipments]
+  );
+
+  const totalCollected = useMemo(() => 
+    codShipments.filter(s => s.codCollected).reduce((s, sh) => s + sh.price + (sh.shippingFee || 0), 0),
+    [codShipments]
+  );
+
   const pending = totalExpected - totalCollected;
   const collectionPercent = totalExpected > 0 ? Math.round((totalCollected / totalExpected) * 100) : 0;
 
-  const codByCourier = couriers.map(c => ({
-    name: c.name,
-    collected: codShipments.filter(s => s.courierId === c.id && s.codCollected).reduce((sum, s) => sum + s.price + (s.shippingFee || 0), 0),
-    pending: codShipments.filter(s => s.courierId === c.id && !s.codCollected).reduce((sum, s) => sum + s.price + (s.shippingFee || 0), 0),
-  })).filter(c => c.collected > 0 || c.pending > 0);
+  const codByCourier = useMemo(() => 
+    couriers.map(c => ({
+      name: c.name,
+      collected: codShipments.filter(s => s.courierId === c.id && s.codCollected).reduce((sum, s) => sum + s.price + (s.shippingFee || 0), 0),
+      pending: codShipments.filter(s => s.courierId === c.id && !s.codCollected).reduce((sum, s) => sum + s.price + (s.shippingFee || 0), 0),
+    })).filter(c => c.collected > 0 || c.pending > 0),
+    [couriers, codShipments]
+  );
 
-  const markCollected = (id: string) => {
-    db.update('shipments', id, { codCollected: true });
-    setRefresh(r => r + 1);
-    toast.success(t.collectionConfirmed);
+  const markCollected = async (id: string) => {
+    setIsUpdating(id);
+    try {
+      await api.shipments.update(id, { codCollected: true, updatedAt: now() });
+      queryClient.invalidateQueries({ queryKey: ['shipments'] });
+      toast.success(t.collectionConfirmed);
+    } catch (err) {
+      toast.error('حدث خطأ أثناء تحديث حالة التحصيل');
+    } finally {
+      setIsUpdating(null);
+    }
   };
 
   const kpis = [
@@ -43,6 +74,13 @@ const PaymentsPage: React.FC = () => {
     { icon: Clock, label: t.pendingCollection, value: pending, color: '#F59E0B' },
     { icon: Package, label: t.codShipments, value: codShipments.length, color: '#A78BFA', isCount: true },
   ];
+
+  if (shipmentsLoading || couriersLoading) return (
+    <div className="flex flex-col items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
+        <p className="text-muted-foreground">جاري تحميل بيانات المدفوعات...</p>
+    </div>
+  );
 
   return (
     <motion.div variants={pageVariants} initial="initial" animate="animate" className="space-y-6">
@@ -95,15 +133,17 @@ const PaymentsPage: React.FC = () => {
       {codByCourier.length > 0 && (
         <div className="admin-card p-6">
           <h3 className="font-semibold text-sm mb-4">{t.codByCourier}</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={codByCourier}>
-              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Bar dataKey="collected" fill="#10B981" radius={[4, 4, 0, 0]} name={t.collected} />
-              <Bar dataKey="pending" fill="#F59E0B" radius={[4, 4, 0, 0]} name={t.pendingCollection} />
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="h-[250px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={codByCourier}>
+                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip />
+                <Bar dataKey="collected" fill="#10B981" radius={[4, 4, 0, 0]} name={t.collected} />
+                <Bar dataKey="pending" fill="#F59E0B" radius={[4, 4, 0, 0]} name={t.pendingCollection} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       )}
 
@@ -139,7 +179,9 @@ const PaymentsPage: React.FC = () => {
                   <td className="p-3">
                     {!s.codCollected && s.status === 'delivered' && (
                       <motion.div whileTap={{ scale: 0.95 }}>
-                        <Button size="sm" variant="ghost" onClick={() => markCollected(s.id)}>{t.markCollected}</Button>
+                        <Button size="sm" variant="ghost" disabled={isUpdating === s.id} onClick={() => markCollected(s.id)}>
+                            {isUpdating === s.id ? <Loader2 className="w-4 h-4 animate-spin" /> : t.markCollected}
+                        </Button>
                       </motion.div>
                     )}
                   </td>

@@ -1,8 +1,8 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTheme } from '@/context/ThemeContext';
-import { db } from '@/db';
-import type { Courier, Shipment, Settlement, User } from '@/db/schema';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 import { formatCurrency, formatDateTime } from '@/utils/formatters';
 import { 
   Truck, 
@@ -17,7 +17,8 @@ import {
   ArrowLeft,
   Clock,
   ExternalLink,
-  Trash2
+  Trash2,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,12 +31,44 @@ const CourierProfilePage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const { t, lang } = useTheme();
     const navigate = useNavigate();
-
-    const courier = useMemo(() => db.getById<Courier>('couriers', id || ''), [id]);
+    const queryClient = useQueryClient();
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
-    const userRole = useMemo(() => courier ? db.getById<User>('users', courier.userId) : null, [courier]);
-    const shipments = useMemo(() => db.getAll<Shipment>('shipments').filter(s => s.courierId === id), [id]);
-    const settlements = useMemo(() => db.getAll<Settlement>('settlements').filter(s => s.courierId === id).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [id]);
+
+    // Queries
+    const { data: courier, isLoading: courierLoading } = useQuery({
+        queryKey: ['courier', id],
+        queryFn: () => api.couriers.getById(id!),
+        enabled: !!id
+    });
+
+    const { data: userProfile, isLoading: userLoading } = useQuery({
+        queryKey: ['user', courier?.userId],
+        queryFn: () => api.users.getById(courier!.userId),
+        enabled: !!courier?.userId
+    });
+
+    const { data: shipments = [], isLoading: shipmentsLoading } = useQuery({
+        queryKey: ['shipments', 'courier', id],
+        queryFn: () => api.shipments.getByCourierId(id!),
+        enabled: !!id
+    });
+
+    const { data: settlements = [], isLoading: settlementsLoading } = useQuery({
+        queryKey: ['settlements', 'courier', id],
+        queryFn: () => api.settlements.getByCourierId(id!),
+        enabled: !!id
+    });
+
+    const isLoading = courierLoading || userLoading || shipmentsLoading || settlementsLoading;
+
+    if (isLoading) {
+        return (
+            <div className="flex flex-col items-center justify-center h-[60vh]">
+                <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
+                <p className="text-muted-foreground">جاري تحميل بيانات المندوب...</p>
+            </div>
+        );
+    }
 
     if (!courier) {
         return (
@@ -59,19 +92,15 @@ const CourierProfilePage: React.FC = () => {
         goodsInTransit: shipments.filter(s => ['assigned', 'out_for_delivery'].includes(s.status)).reduce((sum, s) => sum + s.price + (s.shippingFee || 0), 0),
     };
 
-    const handleDelete = () => {
-        if (!courier) return;
-        
-        // Clear shipments assignment
-        const courierShipments = db.getAll<Shipment>('shipments').filter(s => s.courierId === id);
-        courierShipments.forEach(s => db.update('shipments', s.id, { courierId: undefined }));
-        
-        // Delete records
-        if (courier.userId) db.delete('users', courier.userId);
-        db.delete('couriers', courier.id);
-        
-        toast.success('تم حذف المندوب وكل بياناته بنجاح');
-        navigate('/couriers');
+    const handleDelete = async () => {
+        try {
+            await api.users.delete(courier.userId); // This cascades to couriers table
+            queryClient.invalidateQueries({ queryKey: ['couriers'] });
+            toast.success('تم حذف المندوب وكل بياناته بنجاح');
+            navigate('/couriers');
+        } catch (err) {
+            toast.error('حدث خطأ أثناء محاولة الحذف');
+        }
     };
 
     return (
@@ -134,14 +163,14 @@ const CourierProfilePage: React.FC = () => {
                                 <p className="font-mono-nums font-semibold">{formatDateTime(courier.joinDate, lang)}</p>
                             </div>
                         </div>
-                        {userRole && (
+                        {userProfile && (
                              <div className="flex items-center gap-3">
                                 <div className="p-2 bg-primary/10 rounded-lg text-primary">
                                     <TrendingUp className="w-4 h-4" />
                                 </div>
                                 <div>
                                     <p className="text-xs text-muted-foreground">البريد الإلكتروني</p>
-                                    <p className="font-semibold">{userRole.email}</p>
+                                    <p className="font-semibold">{userProfile.email}</p>
                                 </div>
                             </div>
                         )}
