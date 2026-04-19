@@ -4,6 +4,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { StatusBadge } from '@/components/shared/StatusBadge';
+import { FinanceBadge } from '@/components/shared/FinanceBadge';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { Plus, Search, X, Trash2, Eye, Loader2 } from 'lucide-react';
@@ -189,6 +190,7 @@ const ShipmentsPage: React.FC = () => {
                   <th className="p-3 text-start font-medium">{t.price}</th>
                   <th className="p-3 text-start font-medium">{t.payment}</th>
                   <th className="p-3 text-start font-medium">{t.status}</th>
+                  <th className="p-3 text-start font-medium">{t.financeStatus}</th>
                   <th className="p-3 text-start font-medium">{t.courier}</th>
                   <th className="p-3 text-start font-medium">{t.date}</th>
                   <th className="p-3 w-10"></th>
@@ -217,6 +219,7 @@ const ShipmentsPage: React.FC = () => {
                     <td className="p-3 font-mono-nums">{formatCurrency(s.price + (s.shippingFee || 0))} {t.egp}</td>
                     <td className="p-3 text-xs">{s.paymentType === 'COD' ? t.cod : t.paid}</td>
                     <td className="p-3"><StatusBadge status={s.status} /></td>
+                    <td className="p-3"><FinanceBadge shipment={s} /></td>
                     <td className="p-3">
                       {s.courierId ? (
                         <button 

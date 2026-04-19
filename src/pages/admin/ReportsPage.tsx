@@ -1,14 +1,40 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useTheme } from '@/context/ThemeContext';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { Download, FileText, CircleDollarSign, TrendingUp, Wallet, Loader2 } from 'lucide-react';
+import { 
+  Download, 
+  CircleDollarSign, 
+  TrendingUp, 
+  Wallet, 
+  Loader2, 
+  MapPin, 
+  Navigation,
+  Activity
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, ComposedChart, Line } from 'recharts';
+import { 
+  AreaChart, 
+  Area, 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  Tooltip, 
+  ResponsiveContainer, 
+  CartesianGrid, 
+  PieChart, 
+  Pie, 
+  Cell,
+  Legend 
+} from 'recharts';
 import { formatCurrency } from '@/utils/formatters';
 import { toast } from 'sonner';
+import { startOfWeek, endOfWeek, eachDayOfInterval, format, subWeeks, isWithinInterval } from 'date-fns';
+import { arSA } from 'date-fns/locale';
+
+const COLORS = ['#4F8EF7', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4'];
 
 const ChartTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
@@ -34,7 +60,6 @@ const ChartTooltip = ({ active, payload, label }: any) => {
 
 const ReportsPage: React.FC = () => {
   const { t } = useTheme();
-  const [period, setPeriod] = useState('monthly');
 
   const { data: shipments = [], isLoading: shipmentsLoading } = useQuery({
     queryKey: ['shipments'],
@@ -46,35 +71,68 @@ const ReportsPage: React.FC = () => {
     queryFn: api.couriers.getAll
   });
 
+  // Calculate Governorates Data
+  const governorateData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    shipments.forEach(s => {
+      counts[s.governorate] = (counts[s.governorate] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 6);
+  }, [shipments]);
+
+  // Calculate Weekly Growth Data
+  const weeklyGrowthData = useMemo(() => {
+    const weeks = [3, 2, 1, 0].map(weekOffset => {
+      const start = startOfWeek(subWeeks(new Date(), weekOffset));
+      const end = endOfWeek(subWeeks(new Date(), weekOffset));
+      const count = shipments.filter(s => {
+        const d = new Date(s.createdAt);
+        return isWithinInterval(d, { start, end });
+      }).length;
+      return {
+        name: `الأسبوع ${4 - weekOffset}`,
+        count
+      };
+    });
+    return weeks;
+  }, [shipments]);
+
+  // Top Performing Couriers
+  const topCouriersData = useMemo(() => {
+    return couriers.map(c => {
+      const cs = shipments.filter(s => s.courierId === c.id);
+      const del = cs.filter(s => s.status === 'delivered').length;
+      return { 
+        name: c.name, 
+        delivered: del,
+        rate: cs.length > 0 ? Math.round((del / cs.length) * 100) : 0 
+      };
+    }).sort((a, b) => b.delivered - a.delivered).slice(0, 5);
+  }, [couriers, shipments]);
+
+  const financialStats = useMemo(() => ({
+    companyProfit: shipments.filter(s => s.status === 'delivered').reduce((sum, s) => sum + (s.shippingFee || 0), 0),
+    sellersProfit: shipments.filter(s => s.status === 'delivered').reduce((sum, s) => sum + s.price, 0),
+    totalVolume: shipments.filter(s => s.status === 'delivered').reduce((sum, s) => sum + s.price + (s.shippingFee || 0), 0),
+  }), [shipments]);
+
   const exportCSV = () => {
-    const headers = ['Tracking,Customer,City,Price,Status,Courier,Date'];
+    const headers = ['Tracking,Customer,City,Governorate,Price,Status,Date'];
     const rows = shipments.map(s => {
-      const cn = couriers.find(c => c.id === s.courierId)?.name || '';
-      return `${s.trackingId},${s.customerName},${s.city},${s.price},${s.status},${cn},${s.createdAt}`;
+      return `${s.trackingId},${s.customerName},${s.city},${s.governorate},${s.price},${s.status},${s.createdAt}`;
     });
     const csv = [...headers, ...rows].join('\n');
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `report-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `elmona-report-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success(t.exportCSV);
-  };
-
-  // Courier performance
-  const courierPerf = couriers.map(c => {
-    const cs = shipments.filter(s => s.courierId === c.id);
-    const del = cs.filter(s => s.status === 'delivered').length;
-    const ret = cs.filter(s => s.status === 'returned').length;
-    return { name: c.name, delivered: del, returned: ret, total: cs.length, rate: cs.length > 0 ? Math.round((del / cs.length) * 100) : 0 };
-  });
-
-  const financialStats = {
-    companyProfit: shipments.filter(s => s.status === 'delivered').reduce((sum, s) => sum + (s.shippingFee || 0), 0),
-    sellersProfit: shipments.filter(s => s.status === 'delivered').reduce((sum, s) => sum + s.price, 0),
-    totalVolume: shipments.filter(s => s.status === 'delivered').reduce((sum, s) => sum + s.price + (s.shippingFee || 0), 0),
   };
 
   if (shipmentsLoading || couriersLoading) return (
@@ -85,11 +143,18 @@ const ReportsPage: React.FC = () => {
   );
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-8 animate-fade-in pb-10" dir="rtl">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">{t.reports}</h2>
+        <div>
+          <h2 className="text-2xl font-black">{t.reports}</h2>
+          <p className="text-muted-foreground text-sm">تحليل شامل لأداء الشحن والنمو الإحصائي</p>
+        </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="rounded-xl" onClick={exportCSV}><Download className="w-4 h-4 me-2" />{t.exportCSV}</Button>
+          <Button variant="outline" className="rounded-xl border-primary/20 hover:bg-primary/5" onClick={exportCSV}>
+            <Download className="w-4 h-4 me-2 text-primary" />
+            {t.exportCSV}
+          </Button>
         </div>
       </div>
 
@@ -97,114 +162,142 @@ const ReportsPage: React.FC = () => {
         <EmptyState title={t.noDataYet} />
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="admin-card p-4 border-none bg-emerald-500/10">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-emerald-500/20 rounded-lg text-emerald-600"><CircleDollarSign className="w-5 h-5" /></div>
+          {/* Financial Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="admin-card p-6 border-none bg-emerald-500/10 relative overflow-hidden group">
+              <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-all" />
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-emerald-500/20 rounded-2xl text-emerald-600 shadow-sm shadow-emerald-500/20">
+                  <CircleDollarSign className="w-6 h-6" />
+                </div>
                 <div>
-                  <p className="text-xs text-emerald-700 font-bold">أرباح شركة الشحن</p>
-                  <p className="text-xl font-black text-emerald-600 font-mono-nums">{formatCurrency(financialStats.companyProfit)} ج</p>
+                  <p className="text-sm text-emerald-700 font-bold">أرباح شركة الشحن</p>
+                  <p className="text-2xl font-black text-emerald-600 font-mono-nums">{formatCurrency(financialStats.companyProfit)} ج</p>
                 </div>
               </div>
             </div>
-            <div className="admin-card p-4 border-none bg-blue-500/10">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-500/20 rounded-lg text-blue-600"><Wallet className="w-5 h-5" /></div>
+
+            <div className="admin-card p-6 border-none bg-blue-500/10 relative overflow-hidden group">
+              <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl group-hover:bg-blue-500/20 transition-all" />
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-blue-500/20 rounded-2xl text-blue-600 shadow-sm shadow-blue-500/20">
+                  <Wallet className="w-6 h-6" />
+                </div>
                 <div>
-                  <p className="text-xs text-blue-700 font-bold">إجمالي أرباح المتاجر</p>
-                  <p className="text-xl font-black text-blue-600 font-mono-nums">{formatCurrency(financialStats.sellersProfit)} ج</p>
+                  <p className="text-sm text-blue-700 font-bold">إجمالي أرباح المتاجر</p>
+                  <p className="text-2xl font-black text-blue-600 font-mono-nums">{formatCurrency(financialStats.sellersProfit)} ج</p>
                 </div>
               </div>
             </div>
-            <div className="admin-card p-4 border-none bg-primary/10">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary/20 rounded-lg text-primary"><TrendingUp className="w-5 h-5" /></div>
+
+            <div className="admin-card p-6 border-none bg-primary/10 relative overflow-hidden group">
+              <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-primary/10 rounded-full blur-2xl group-hover:bg-primary/20 transition-all" />
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-primary/20 rounded-2xl text-primary shadow-sm shadow-primary/20">
+                  <TrendingUp className="w-6 h-6" />
+                </div>
                 <div>
-                  <p className="text-xs text-primary-700 font-bold">حجم التداول الكلي</p>
-                  <p className="text-xl font-black text-primary font-mono-nums">{formatCurrency(financialStats.totalVolume)} ج</p>
+                  <p className="text-sm text-primary-700 font-bold">حجم التداول الكلي</p>
+                  <p className="text-2xl font-black text-primary font-mono-nums">{formatCurrency(financialStats.totalVolume)} ج</p>
                 </div>
               </div>
             </div>
           </div>
-          <Tabs value={period} onValueChange={setPeriod}>
-            <TabsList className="rounded-xl">
-              <TabsTrigger value="daily" className="rounded-lg">{t.daily}</TabsTrigger>
-              <TabsTrigger value="weekly" className="rounded-lg">{t.weekly}</TabsTrigger>
-              <TabsTrigger value="monthly" className="rounded-lg">{t.monthly}</TabsTrigger>
-            </TabsList>
-          </Tabs>
 
+          {/* Main Charts Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="admin-card p-6">
-              <h3 className="font-semibold text-sm mb-6 flex items-center"><FileText className="w-4 h-4 me-2 text-primary" /> {t.deliveryVsReturn}</h3>
-              <div className="h-[300px]">
+            {/* Weekly Growth Chart */}
+            <div className="admin-card p-6 space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-lg flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-primary" />
+                  {t.weeklyGrowth}
+                </h3>
+              </div>
+              <div className="h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={courierPerf} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <AreaChart data={weeklyGrowthData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                     <defs>
-                      <linearGradient id="colorDelivered" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10B981" stopOpacity={0.8} />
-                        <stop offset="95%" stopColor="#10B981" stopOpacity={0.2} />
-                      </linearGradient>
-                      <linearGradient id="colorReturned" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#F87171" stopOpacity={0.8} />
-                        <stop offset="95%" stopColor="#F87171" stopOpacity={0.2} />
+                      <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#4F8EF7" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#4F8EF7" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.5} />
-                    <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" axisLine={false} tickLine={false} dy={10} />
-                    <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" axisLine={false} tickLine={false} dx={-10} />
-                    <Tooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }} />
-                    <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
-                    <Bar dataKey="delivered" fill="url(#colorDelivered)" radius={[4, 4, 0, 0]} name={t.delivered} maxBarSize={40} />
-                    <Bar dataKey="returned" fill="url(#colorReturned)" radius={[4, 4, 0, 0]} name={t.returned} maxBarSize={40} />
-                  </BarChart>
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Area type="monotone" dataKey="count" name="عدد الشحنات" stroke="#4F8EF7" strokeWidth={3} fillOpacity={1} fill="url(#colorCount)" />
+                  </AreaChart>
                 </ResponsiveContainer>
               </div>
             </div>
-            <div className="admin-card p-6">
-              <h3 className="font-semibold text-sm mb-6 flex items-center"><FileText className="w-4 h-4 me-2 text-primary" /> {t.courierComparison}</h3>
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={courierPerf} layout="vertical" margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="colorRate" x1="1" y1="0" x2="0" y2="0">
-                        <stop offset="5%" stopColor="#4F8EF7" stopOpacity={0.8} />
-                        <stop offset="95%" stopColor="#4F8EF7" stopOpacity={0.2} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" opacity={0.5} />
-                    <XAxis type="number" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" axisLine={false} tickLine={false} domain={[0, 100]} />
-                    <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={80} stroke="hsl(var(--muted-foreground))" axisLine={false} tickLine={false} />
-                    <Tooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }} />
-                    <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
-                    <Bar dataKey="rate" fill="url(#colorRate)" radius={[0, 4, 4, 0]} name={t.successRate} maxBarSize={30} />
-                  </BarChart>
-                </ResponsiveContainer>
+
+            {/* Top Governorates Chart */}
+            <div className="admin-card p-6 space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-lg flex items-center gap-2">
+                  <MapPin className="w-5 h-5 text-fuchsia-500" />
+                  {t.topGovernorates}
+                </h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                <div className="h-[250px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={governorateData}
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {governorateData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="space-y-3">
+                  {governorateData.map((item, index) => (
+                    <div key={item.name} className="flex items-center justify-between group">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                        <span className="text-sm font-medium">{item.name}</span>
+                      </div>
+                      <span className="text-xs font-mono-nums font-bold bg-muted px-2 py-1 rounded-lg group-hover:bg-primary group-hover:text-white transition-colors">{item.value} شحنة</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="admin-card">
-            <div className="p-4 border-b font-semibold text-sm">{t.performance}</div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead><tr className="border-b bg-muted/30">
-                  <th className="p-3 text-start font-medium">{t.courier}</th>
-                  <th className="p-3 text-start font-medium">{t.assignedShipments}</th>
-                  <th className="p-3 text-start font-medium">{t.deliveredShipments}</th>
-                  <th className="p-3 text-start font-medium">{t.returnedShipments}</th>
-                  <th className="p-3 text-start font-medium">{t.successRate}</th>
-                </tr></thead>
-                <tbody>{courierPerf.map(c => (
-                  <tr key={c.name} className="border-b hover:bg-muted/30">
-                    <td className="p-3 font-medium">{c.name}</td>
-                    <td className="p-3 font-mono-nums">{c.total}</td>
-                    <td className="p-3 font-mono-nums text-success">{c.delivered}</td>
-                    <td className="p-3 font-mono-nums text-destructive">{c.returned}</td>
-                    <td className="p-3 font-mono-nums">{c.rate}%</td>
-                  </tr>
-                ))}</tbody>
-              </table>
+          {/* Bottom Row - Couriers */}
+          <div className="grid grid-cols-1 gap-6">
+            <div className="admin-card p-6">
+              <div className="flex items-center justify-between mb-8">
+                <h3 className="font-bold text-lg flex items-center gap-2">
+                  <Navigation className="w-5 h-5 text-emerald-500" />
+                  {t.fastestCouriers}
+                </h3>
+              </div>
+              <div className="h-[300px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={topCouriersData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
+                    <XAxis type="number" hide />
+                    <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 'bold' }} />
+                    <Tooltip content={<ChartTooltip />} cursor={{ fill: 'transparent' }} />
+                    <Bar dataKey="delivered" name="تم تسليمه" radius={[0, 8, 8, 0]} maxBarSize={30}>
+                      {topCouriersData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} opacity={0.8} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
         </>

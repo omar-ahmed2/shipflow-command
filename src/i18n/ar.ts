@@ -171,6 +171,13 @@ export const ar = {
   courierComparison: "مقارنة المندوبين",
   performance: "الأداء",
   avgTime: "متوسط الوقت",
+  topGovernorates: "المحافظات الأكثر طلباً",
+  fastestCouriers: "أفضل المناديب أداءً",
+  weeklyGrowth: "نمو الشحنات الأسبوعي",
+  financeStatus: "الحالة المالية",
+  deliveredToMerchant: "تم التسليم للتاجر",
+  withCourier: "نقدية مع المندوب",
+  returnedWaitingFee: "مرتجع (انتظار مصاريف الشحن)",
   // Settings
   general: "عام",
   security: "الأمان",

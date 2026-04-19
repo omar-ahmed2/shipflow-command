@@ -88,10 +88,25 @@ const CourierCODPage: React.FC = () => {
               <p className="text-sm font-medium">{s.customerName}</p>
               <div className="flex items-center justify-between mt-3 flex-row-reverse">
                 <span className="font-mono-nums font-black text-primary">{formatCurrency(s.price + (s.shippingFee || 0))} {t.egp}</span>
-                {!s.courierCollected && s.status === 'delivered' && (
-                  <motion.div whileTap={{ scale: 0.95 }}>
-                    <Button size="sm" className="rounded-xl h-8 px-4 font-bold" onClick={() => confirmCollection(s.id)}>
-                      {t.confirmCollection}
+                {s.status === 'delivered' && (
+                  <motion.div whileTap={!s.courierCollected ? { scale: 0.95 } : {}}>
+                    <Button 
+                      size="sm" 
+                      className={`rounded-xl h-8 px-4 font-bold transition-all ${
+                        s.courierCollected 
+                          ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/10 cursor-default' 
+                          : 'shadow-lg shadow-primary/25'
+                      }`}
+                      variant={s.courierCollected ? 'outline' : 'default'}
+                      disabled={s.courierCollected}
+                      onClick={() => !s.courierCollected && confirmCollection(s.id)}
+                    >
+                      {s.courierCollected ? (
+                        <span className="flex items-center gap-1">
+                          <CheckCircle className="w-3 h-3" />
+                          {t.collected}
+                        </span>
+                      ) : t.confirmCollection}
                     </Button>
                   </motion.div>
                 )}

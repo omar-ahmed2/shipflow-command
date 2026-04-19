@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { now } from '@/db/helpers';
 import type { ShipmentStatus } from '@/db/schema';
 import { StatusBadge } from '@/components/shared/StatusBadge';
+import { FinanceBadge } from '@/components/shared/FinanceBadge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
@@ -308,7 +309,7 @@ const ShipmentDetailsPage: React.FC = () => {
                 <div className="bg-primary/5 p-2 rounded-lg"><span className="text-primary text-xs font-bold block mb-1">إجمالي السعر</span><p className="font-mono-nums font-bold text-sm text-primary">{formatCurrency(shipment.price + (shipment.shippingFee || 0))} {t.egp}</p></div>
               </div>
               <div><span className="text-muted-foreground">{t.payment}</span><p>{shipment.paymentType === 'COD' ? t.cod : t.paid}</p></div>
-              <div><span className="text-muted-foreground">{t.status}</span><div className="mt-1"><StatusBadge status={shipment.status} /></div></div>
+              <div><span className="text-muted-foreground">{t.status}</span><div className="mt-1 flex flex-wrap gap-2"><StatusBadge status={shipment.status} /><FinanceBadge shipment={shipment} /></div></div>
               <div><span className="text-muted-foreground">{t.courier}</span><p>{courierName}</p></div>
             </div>
           </div>

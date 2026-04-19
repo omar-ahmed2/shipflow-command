@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Search, Filter, Printer, X, Package, Loader2, Info, CheckCircle } from 'lucide-react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { FinanceBadge } from '@/components/shared/FinanceBadge';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 
 const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
@@ -114,6 +115,7 @@ const SellerShipmentsPage = () => {
                   <th className="p-5 font-bold text-center">المحافظة / المدينة</th>
                   <th className="p-5 font-bold text-center">المبلغ</th>
                   <th className="p-5 font-bold text-center">الحالة</th>
+                  <th className="p-5 font-bold text-center">المالية</th>
                   <th className="p-5 font-bold text-center">التاريخ</th>
                   <th className="p-5 font-bold"></th>
                 </tr>
@@ -121,7 +123,7 @@ const SellerShipmentsPage = () => {
               <tbody className="divide-y divide-muted/30">
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-20 text-center text-muted-foreground">
+                    <td colSpan={8} className="p-20 text-center text-muted-foreground">
                       <Package className="w-16 h-16 mx-auto mb-4 opacity-10" />
                       <p className="text-lg font-bold">لا توجد شحنات مطابقة للبحث</p>
                       <p className="text-xs opacity-60">جرب البحث بكلمات أخرى أو تغيير الفلتر</p>
@@ -146,6 +148,9 @@ const SellerShipmentsPage = () => {
                           <span className={`px-3 py-1.5 rounded-full text-[10px] font-black border ${sLabel?.cls || 'bg-muted text-muted-foreground'}`}>
                             {sLabel?.label || shipment.status}
                           </span>
+                        </td>
+                        <td className="p-5 text-center">
+                          <FinanceBadge shipment={shipment} />
                         </td>
                         <td className="p-5 text-center text-muted-foreground text-[10px] font-bold">
                           {formatDate(shipment.createdAt, lang)}
