@@ -56,7 +56,8 @@ const CreateShipmentPage: React.FC = () => {
     setIsSubmitting(true);
     
     try {
-      const trackingId = generateTrackingId();
+      const todayCount = await api.shipments.getTodayCount();
+      const trackingId = generateTrackingId('Elmona', todayCount + 1);
       const verificationCode = generateVerificationCode();
       const status = form.courierId && form.courierId !== 'none' ? 'assigned' : 'pending';
 

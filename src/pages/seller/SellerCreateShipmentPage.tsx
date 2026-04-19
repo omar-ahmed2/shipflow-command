@@ -46,7 +46,8 @@ const SellerCreateShipmentPage = () => {
     setLoading(true);
     
     try {
-      const trackingId = generateTrackingId();
+      const todayCount = await api.shipments.getTodayCount();
+      const trackingId = generateTrackingId('Elmona', todayCount + 1);
       const verificationCode = generateVerificationCode();
       
       const newShipmentData = {

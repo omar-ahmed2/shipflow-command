@@ -149,6 +149,16 @@ export const api = {
       
       const { error } = await supabase.from('shipments').update(dbUpdates).in('id', ids);
       if (error) throw error;
+    },
+    getTodayCount: async () => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const { count, error } = await supabase
+        .from('shipments')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', today.toISOString());
+      if (error) throw error;
+      return count || 0;
     }
   },
   couriers: {

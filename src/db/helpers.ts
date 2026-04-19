@@ -2,9 +2,11 @@ export const generateId = (prefix: string): string => {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
 };
 
-export const generateTrackingId = (): string => {
-  const num = Math.floor(100000 + Math.random() * 900000);
-  return `TRK-${num}`;
+export const generateTrackingId = (prefix: string = 'Elmona', sequence: number = 1): string => {
+  const d = new Date();
+  const dateStr = `${d.getDate()}${d.getMonth() + 1}${d.getFullYear()}`;
+  const seqStr = sequence.toString().padStart(2, '0');
+  return `${prefix}-${dateStr}-${seqStr}`;
 };
 
 export const generateVerificationCode = (): string => {
