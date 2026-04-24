@@ -23,31 +23,42 @@ export const adminService = {
     const { data: { session } } = await supabase.auth.getSession();
     
     if (!session?.access_token) {
-      throw new Error('No active session. Please log in again.');
+      throw new Error('انتهت الجلسة. يرجى تسجيل الدخول مرة أخرى.');
     }
     
-    const { data, error } = await supabase.functions.invoke('create-user', {
-      headers: {
-        Authorization: `Bearer ${session.access_token}`
-      },
-      body: {
-        email: params.email,
-        password: params.password || '12345678', // Default if not provided
-        name: params.name,
-        role: params.role,
-        meta: {
-          phone: params.phone,
-          zone: params.zone,
-          vehicleType: params.vehicleType,
-          storeName: params.storeName,
-          address: params.address,
-          notes: params.notes
+    try {
+      const { data, error } = await supabase.functions.invoke('create-user', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        },
+        body: {
+          email: params.email,
+          password: params.password || '12345678',
+          name: params.name,
+          role: params.role,
+          meta: {
+            phone: params.phone,
+            zone: params.zone,
+            vehicleType: params.vehicleType,
+            storeName: params.storeName,
+            address: params.address,
+            notes: params.notes
+          }
         }
-      }
-    });
+      });
 
-    if (error) throw error;
-    return data;
+      if (error) {
+        console.error('Supabase Function Invoke Error:', error);
+        // التحقق من نوع الخطأ القادم من سوبابيز
+        const errorMessage = error.message || (typeof data === 'object' && data?.error) || 'فشل في إنشاء الحساب';
+        throw new Error(errorMessage);
+      }
+
+      return data;
+    } catch (err: any) {
+      console.error('CreateUser Service Catch:', err);
+      throw err;
+    }
   },
 
   /**

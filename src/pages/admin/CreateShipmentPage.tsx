@@ -106,9 +106,10 @@ const CreateShipmentPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['shipments'] });
       toast.success(t.shipmentCreated);
       navigate('/shipments');
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      toast.error('حدث خطأ أثناء إنشاء الشحنة');
+      const msg = err.message || 'حدث خطأ أثناء إنشاء الشحنة';
+      toast.error(msg);
     } finally {
       setIsSubmitting(false);
     }
