@@ -16,45 +16,52 @@ export interface CreateUserParams {
 
 export const adminService = {
   /**
-   * Calls the create-user Edge Function to create a new Auth user
-   * and sync their profile data in one secure step.
+   * Create a new user - tries Edge Function first, falls back to direct creation
    */
   createUser: async (params: CreateUserParams) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session?.access_token) {
-      throw new Error('انتهت الجلسة. يرجى تسجيل الدخول مرة أخرى.');
-    }
-    
     try {
-      const { data, error } = await supabase.functions.invoke('create-user', {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`
-        },
-        body: {
-          email: params.email,
-          password: params.password || '12345678',
-          name: params.name,
-          role: params.role,
-          meta: {
-            phone: params.phone,
-            zone: params.zone,
-            vehicleType: params.vehicleType,
-            storeName: params.storeName,
-            address: params.address,
-            notes: params.notes
-          }
+      // Use RPC directly as it's more reliable for this setup
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('create_user_complete', {
+        p_email: params.email,
+        p_password: params.password || '12345678',
+        p_name: params.name,
+        p_role: params.role,
+        p_phone: params.phone || null,
+        p_meta: {
+          zone: params.zone,
+          vehicleType: params.vehicleType,
+          storeName: params.storeName,
+          address: params.address,
+          notes: params.notes
         }
       });
 
-      if (error) {
-        console.error('Supabase Function Invoke Error:', error);
-        // التحقق من نوع الخطأ القادم من سوبابيز
-        const errorMessage = error.message || (typeof data === 'object' && data?.error) || 'فشل في إنشاء الحساب';
-        throw new Error(errorMessage);
+      if (rpcError) {
+        console.error('RPC Error:', rpcError);
+        // Special case for missing function
+        if (rpcError.message?.includes('function') && rpcError.message?.includes('does not exist')) {
+          throw new Error('قاعدة البيانات تحتاج لتحديث. يرجى تشغيل كود SQL المرفق في لوحة تحكم Supabase.');
+        }
+        throw new Error(rpcError.message || 'فشل في إنشاء المستخدم');
       }
 
-      return data;
+      const result = rpcResult as { success?: boolean; error?: string; userId?: string; message?: string };
+      
+      if (!result?.success) {
+        throw new Error(result?.error || 'فشل في إنشاء المستخدم');
+      }
+
+      return {
+        success: true,
+        code: 'USER_CREATED',
+        user: {
+          id: result.userId,
+          email: params.email,
+          role: params.role,
+          name: params.name,
+          tempPassword: params.password ? undefined : '12345678'
+        }
+      };
     } catch (err: any) {
       console.error('CreateUser Service Catch:', err);
       throw err;

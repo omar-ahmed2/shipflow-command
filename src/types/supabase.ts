@@ -372,7 +372,69 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_admin: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      is_seller: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      is_courier: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      get_current_seller_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      get_current_courier_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      create_new_user: {
+        Args: {
+          p_email: string
+          p_name: string
+          p_role: string
+          p_phone?: string
+          p_meta?: Json
+        }
+        Returns: Json
+      }
+      create_user_complete: {
+        Args: {
+          p_email: string
+          p_password: string
+          p_name: string
+          p_role: string
+          p_phone?: string
+          p_meta?: Json
+        }
+        Returns: Json
+      }
+      assign_courier_rpc: {
+        Args: {
+          p_shipment_id: string
+          p_courier_id: string
+        }
+        Returns: Json
+      }
+      update_shipment_status_rpc: {
+        Args: {
+          p_shipment_id: string
+          p_status: string
+          p_note?: string
+        }
+        Returns: Json
+      }
+      delete_user_rpc: {
+        Args: {
+          p_user_id: string
+          p_delete_related?: boolean
+        }
+        Returns: Json
+      }
     }
     Enums: {
       courier_status: "active" | "offline" | "on_delivery"

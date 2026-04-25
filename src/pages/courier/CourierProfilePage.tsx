@@ -83,10 +83,10 @@ const CourierProfilePage: React.FC = () => {
              <span className="text-foreground font-medium">{courierProfile?.phone}</span> <Phone className="w-4 h-4" />
           </div>
           <div className="flex items-center gap-3 justify-end text-muted-foreground">
-             <span className="text-foreground font-medium">{courierProfile?.vehicleType && t[courierProfile.vehicleType as keyof typeof t]}</span> <Truck className="w-4 h-4" />
+             <span className="text-foreground font-medium">{courierProfile?.vehicle_type && t[courierProfile.vehicle_type as keyof typeof t]}</span> <Truck className="w-4 h-4" />
           </div>
           <div className="flex items-center gap-3 justify-end text-muted-foreground">
-             <span className="text-foreground font-medium">{courierProfile?.joinDate && formatDate(courierProfile.joinDate, lang)}</span> <Calendar className="w-4 h-4" />
+             <span className="text-foreground font-medium">{courierProfile?.join_date && formatDate(courierProfile.join_date, lang)}</span> <Calendar className="w-4 h-4" />
           </div>
         </div>
       </motion.div>
