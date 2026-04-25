@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { adminService } from '@/services/adminService';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { Plus, Search, Truck, Grid3X3, List, ExternalLink, Loader2 } from 'lucide-react';
+import { Plus, Search, Truck, Grid3X3, List, ExternalLink, Loader2, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,6 +23,7 @@ const CouriersPage: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Queries
   const { data: couriers = [], isLoading: courierLoading } = useQuery({ queryKey: ['couriers'], queryFn: api.couriers.getAll });
@@ -245,7 +246,25 @@ const CouriersPage: React.FC = () => {
             <hr />
             <p className="text-xs text-muted-foreground">{t.loginDesc}</p>
             <div><Label>{t.email} *</Label><Input type="email" value={form.email} onChange={e => updateForm('email', e.target.value)} disabled={isCreating} className="rounded-xl mt-1" /></div>
-            <div><Label>{t.password} *</Label><Input type="password" value={form.password} onChange={e => updateForm('password', e.target.value)} disabled={isCreating} className="rounded-xl mt-1" /></div>
+            <div>
+              <Label>{t.password} *</Label>
+              <div className="relative mt-1">
+                <Input 
+                  type={showPassword ? "text" : "password"} 
+                  value={form.password} 
+                  onChange={e => updateForm('password', e.target.value)} 
+                  disabled={isCreating} 
+                  className="rounded-xl pe-10" 
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setModalOpen(false)} disabled={isCreating}>{t.cancel}</Button>
