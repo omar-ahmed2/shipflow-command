@@ -6,7 +6,8 @@ export const generateTrackingId = (prefix: string = 'Elmona', sequence: number =
   const d = new Date();
   const dateStr = `${d.getDate()}${d.getMonth() + 1}${d.getFullYear()}`;
   const seqStr = sequence.toString().padStart(2, '0');
-  return `${prefix}-${dateStr}-${seqStr}`;
+  const randomSuffix = Math.random().toString(36).substr(2, 4).toUpperCase();
+  return `${prefix}-${dateStr}-${seqStr}-${randomSuffix}`;
 };
 
 export const generateVerificationCode = (): string => {
