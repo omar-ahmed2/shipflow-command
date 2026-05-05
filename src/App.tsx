@@ -35,7 +35,27 @@ import SellerCreateShipmentPage from "./pages/seller/SellerCreateShipmentPage";
 import SellerFinancialsPage from "./pages/seller/SellerFinancialsPage";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+// Optimized QueryClient for high concurrent load (100+ users)
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Aggressive caching to reduce DB connections
+      staleTime: 60 * 1000, // 1 minute - data considered fresh
+      gcTime: 5 * 60 * 1000, // 5 minutes - cache kept in memory
+      refetchOnWindowFocus: false, // Don't refetch when window regains focus
+      refetchOnReconnect: false, // Don't refetch on reconnect (we have real-time updates)
+      retry: 2, // Retry failed queries 2 times
+      retryDelay: (attemptIndex) => Math.min(1000 * Math.pow(2, attemptIndex), 10000),
+      // Batch requests when possible
+      networkMode: 'online',
+    },
+    mutations: {
+      // Optimistic updates disabled for stability
+      retry: 2,
+      retryDelay: 1000,
+    },
+  },
+});
 
 const ProtectedRoutes = () => {
   const { user, isAuthenticated } = useAuth();

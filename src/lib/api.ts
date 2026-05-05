@@ -1,5 +1,95 @@
-import { supabase } from './supabase';
+import { supabase, checkConnectionHealth } from './supabase';
+import { cache, cacheKeys } from './cache';
 import type { Tables } from '@/types/supabase';
+
+// Error handling types
+type ConnectionError = {
+  message: string;
+  code?: string;
+  isConnectionError: boolean;
+}
+
+// Check if error is connection-related
+function isConnectionError(error: any): boolean {
+  if (!error) return false
+  const message = error.message?.toLowerCase() || ''
+  const code = error.code?.toLowerCase() || ''
+  
+  return (
+    message.includes('too many connections') ||
+    message.includes('connection') ||
+    message.includes('pool') ||
+    message.includes('timeout') ||
+    code === '08006' || // connection_failure
+    code === '08000' || // connection_exception
+    code === '53300'   // too_many_connections
+  )
+}
+
+// Retry logic with exponential backoff
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelay: number = 1000
+): Promise<T> {
+  let lastError: any
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn()
+    } catch (error) {
+      lastError = error
+      
+      // Don't retry if not a connection error
+      if (!isConnectionError(error)) {
+        throw error
+      }
+      
+      // Clear cache on connection error to prevent stale data
+      if (attempt === 0) {
+        cache.clear()
+      }
+      
+      // Exponential backoff: 1s, 2s, 4s
+      const delay = baseDelay * Math.pow(2, attempt)
+      console.warn(`Connection error, retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries})`)
+      await new Promise(resolve => setTimeout(resolve, delay))
+    }
+  }
+  
+  throw lastError
+}
+
+// Optimized query wrapper with caching
+async function withCacheAndRetry<T>(
+  fn: () => Promise<T>,
+  cacheKey: string,
+  ttl: number = 30000,
+  maxRetries: number = 3
+): Promise<T> {
+  // Try cache first
+  const cached = cache.get<T>(cacheKey)
+  if (cached !== null) {
+    return cached
+  }
+  
+  // Execute with retry
+  const result = await withRetry(fn, maxRetries)
+  
+  // Store in cache
+  cache.set(cacheKey, result, ttl)
+  
+  return result
+}
+
+// Invalidate cache helper
+export function invalidateCache(key: string | string[]): void {
+  if (Array.isArray(key)) {
+    key.forEach(k => cache.delete(k))
+  } else {
+    cache.delete(key)
+  }
+}
 
 /**
  * Mapping helpers to convert Supabase snake_case to Frontend camelCase
@@ -54,29 +144,66 @@ export const mapSeller = (s: Tables<'sellers'>) => ({
 
 export const api = {
   shipments: {
-    getAll: async () => {
-      const { data, error } = await supabase.from('shipments').select('*').order('created_at', { ascending: false });
-      if (error) throw error;
-      return data.map(mapShipment);
+    getAll: async (options?: { useCache?: boolean }) => {
+      const fn = async () => {
+        const { data, error } = await supabase.from('shipments').select('*').order('created_at', { ascending: false }).limit(1000);
+        if (error) throw error;
+        return data.map(mapShipment);
+      };
+      
+      if (options?.useCache) {
+        return withCacheAndRetry(fn, cacheKeys.shipments(), 30000);
+      }
+      return withRetry(fn);
     },
     getById: async (id: string) => {
-      const { data, error } = await supabase.from('shipments').select('*').eq('id', id).single();
-      if (error) throw error;
-      return mapShipment(data);
+      const fn = async () => {
+        const { data, error } = await supabase.from('shipments').select('*').eq('id', id).single();
+        if (error) throw error;
+        return mapShipment(data);
+      };
+      return withRetry(fn);
     },
     delete: async (id: string) => {
-      const { error } = await supabase.from('shipments').delete().eq('id', id);
-      if (error) throw error;
+      const fn = async () => {
+        const { error } = await supabase.from('shipments').delete().eq('id', id);
+        if (error) throw error;
+      };
+      await withRetry(fn);
+      // Invalidate cache
+      invalidateCache([cacheKeys.shipments(), cacheKeys.shipments('courier'), cacheKeys.shipments('seller')]);
     },
-    getByCourierId: async (courierId: string) => {
-      const { data, error } = await supabase.from('shipments').select('*').eq('courier_id', courierId).order('created_at', { ascending: false });
-      if (error) throw error;
-      return data.map(mapShipment);
+    getByCourierId: async (courierId: string, options?: { useCache?: boolean }) => {
+      const fn = async () => {
+        const { data, error } = await supabase.from('shipments')
+          .select('*')
+          .eq('courier_id', courierId)
+          .order('created_at', { ascending: false })
+          .limit(500);
+        if (error) throw error;
+        return data.map(mapShipment);
+      };
+      
+      if (options?.useCache) {
+        return withCacheAndRetry(fn, cacheKeys.courierShipments(courierId), 20000);
+      }
+      return withRetry(fn);
     },
-    getBySellerId: async (sellerId: string) => {
-      const { data, error } = await supabase.from('shipments').select('*').eq('seller_id', sellerId).order('created_at', { ascending: false });
-      if (error) throw error;
-      return data.map(mapShipment);
+    getBySellerId: async (sellerId: string, options?: { useCache?: boolean }) => {
+      const fn = async () => {
+        const { data, error } = await supabase.from('shipments')
+          .select('*')
+          .eq('seller_id', sellerId)
+          .order('created_at', { ascending: false })
+          .limit(500);
+        if (error) throw error;
+        return data.map(mapShipment);
+      };
+      
+      if (options?.useCache) {
+        return withCacheAndRetry(fn, cacheKeys.sellerShipments(sellerId), 20000);
+      }
+      return withRetry(fn);
     },
     create: async (shipment: any) => {
       // Map to snake_case for DB
@@ -113,81 +240,125 @@ export const api = {
       if (error) throw error;
     },
     getEvents: async (shipmentId: string) => {
-      const { data, error } = await supabase.from('shipment_events')
-        .select('*')
-        .eq('shipment_id', shipmentId)
-        .order('timestamp', { ascending: false });
-      if (error) throw error;
-      return data.map(e => ({
-        id: e.id,
-        shipmentId: e.shipment_id,
-        status: e.status,
-        actor: e.actor,
-        actorRole: e.actor_role,
-        notes: e.note,
-        timestamp: e.timestamp
-      }));
+      const fn = async () => {
+        const { data, error } = await supabase.from('shipment_events')
+          .select('*')
+          .eq('shipment_id', shipmentId)
+          .order('timestamp', { ascending: false })
+          .limit(50);
+        if (error) throw error;
+        return data.map(e => ({
+          id: e.id,
+          shipmentId: e.shipment_id,
+          status: e.status,
+          actor: e.actor,
+          actorRole: e.actor_role,
+          notes: e.note,
+          timestamp: e.timestamp
+        }));
+      };
+      return withRetry(fn);
     },
     update: async (id: string, updates: any) => {
-      // Map camelCase to snake_case
-      const dbUpdates: any = {};
-      if (updates.status) dbUpdates.status = updates.status;
-      if (updates.courierId !== undefined) dbUpdates.courier_id = updates.courierId;
-      if (updates.deliveredAt) dbUpdates.delivered_at = updates.deliveredAt;
-      if (updates.updatedAt) dbUpdates.updated_at = updates.updatedAt;
-      
-      const { error } = await supabase.from('shipments').update(dbUpdates).eq('id', id);
-      if (error) throw error;
+      const fn = async () => {
+        const dbUpdates: any = {};
+        if (updates.status) dbUpdates.status = updates.status;
+        if (updates.courierId !== undefined) dbUpdates.courier_id = updates.courierId;
+        if (updates.deliveredAt) dbUpdates.delivered_at = updates.deliveredAt;
+        if (updates.updatedAt) dbUpdates.updated_at = updates.updatedAt;
+        if (updates.courierCollected !== undefined) dbUpdates.courier_collected = updates.courierCollected;
+        
+        const { error } = await supabase.from('shipments').update(dbUpdates).eq('id', id);
+        if (error) throw error;
+      };
+      await withRetry(fn);
+      // Invalidate related caches
+      invalidateCache([cacheKeys.shipments(), cacheKeys.shipments('courier'), cacheKeys.shipments('seller')]);
     },
     bulkUpdate: async (ids: string[], updates: any) => {
-      // Map camelCase to snake_case
-      const dbUpdates: any = {};
-      if (updates.status) dbUpdates.status = updates.status;
-      if (updates.codCollected !== undefined) dbUpdates.cod_collected = updates.codCollected;
-      if (updates.sellerSettled !== undefined) dbUpdates.seller_settled = updates.sellerSettled;
-      if (updates.updatedAt) dbUpdates.updated_at = updates.updatedAt;
-      
-      const { error } = await supabase.from('shipments').update(dbUpdates).in('id', ids);
-      if (error) throw error;
+      const fn = async () => {
+        const dbUpdates: any = {};
+        if (updates.status) dbUpdates.status = updates.status;
+        if (updates.codCollected !== undefined) dbUpdates.cod_collected = updates.codCollected;
+        if (updates.sellerSettled !== undefined) dbUpdates.seller_settled = updates.sellerSettled;
+        if (updates.updatedAt) dbUpdates.updated_at = updates.updatedAt;
+        
+        const { error } = await supabase.from('shipments').update(dbUpdates).in('id', ids);
+        if (error) throw error;
+      };
+      await withRetry(fn);
+      invalidateCache([cacheKeys.shipments(), cacheKeys.shipments('courier'), cacheKeys.shipments('seller')]);
     },
     getTodayCount: async () => {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const { count, error } = await supabase
-        .from('shipments')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', today.toISOString());
-      if (error) throw error;
-      return count || 0;
+      const fn = async () => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const { count, error } = await supabase
+          .from('shipments')
+          .select('*', { count: 'exact', head: true })
+          .gte('created_at', today.toISOString());
+        if (error) throw error;
+        return count || 0;
+      };
+      return withRetry(fn);
     }
   },
   couriers: {
-    getAll: async () => {
-      const { data, error } = await supabase.from('couriers').select('*').order('join_date', { ascending: false });
-      if (error) throw error;
-      return data.map(mapCourier);
+    getAll: async (options?: { useCache?: boolean }) => {
+      const fn = async () => {
+        const { data, error } = await supabase.from('couriers')
+          .select('*')
+          .order('join_date', { ascending: false })
+          .limit(100);
+        if (error) throw error;
+        return data.map(mapCourier);
+      };
+      
+      if (options?.useCache) {
+        return withCacheAndRetry(fn, cacheKeys.couriers(), 60000);
+      }
+      return withRetry(fn);
     },
     getById: async (id: string) => {
-      const { data, error } = await supabase.from('couriers').select('*').eq('id', id).single();
-      if (error) throw error;
-      return mapCourier(data);
+      const fn = async () => {
+        const { data, error } = await supabase.from('couriers').select('*').eq('id', id).single();
+        if (error) throw error;
+        return mapCourier(data);
+      };
+      return withRetry(fn);
     }
   },
   sellers: {
-    getAll: async () => {
-      const { data, error } = await supabase.from('sellers').select('*').order('join_date', { ascending: false });
-      if (error) throw error;
-      return data.map(mapSeller);
+    getAll: async (options?: { useCache?: boolean }) => {
+      const fn = async () => {
+        const { data, error } = await supabase.from('sellers')
+          .select('*')
+          .order('join_date', { ascending: false })
+          .limit(100);
+        if (error) throw error;
+        return data.map(mapSeller);
+      };
+      
+      if (options?.useCache) {
+        return withCacheAndRetry(fn, cacheKeys.sellers(), 60000);
+      }
+      return withRetry(fn);
     },
     getById: async (id: string) => {
-      const { data, error } = await supabase.from('sellers').select('*').eq('id', id).single();
-      if (error) throw error;
-      return mapSeller(data);
+      const fn = async () => {
+        const { data, error } = await supabase.from('sellers').select('*').eq('id', id).single();
+        if (error) throw error;
+        return mapSeller(data);
+      };
+      return withRetry(fn);
     },
     getByUserId: async (userId: string) => {
-      const { data, error } = await supabase.from('sellers').select('*').eq('user_id', userId).single();
-      if (error) throw error;
-      return mapSeller(data);
+      const fn = async () => {
+        const { data, error } = await supabase.from('sellers').select('*').eq('user_id', userId).single();
+        if (error) throw error;
+        return mapSeller(data);
+      };
+      return withRetry(fn);
     }
   },
   settlements: {
@@ -326,6 +497,61 @@ export const api = {
         link: notification.link
       });
       if (error) throw error;
+    }
+  },
+  // Batch RPC functions for high load (reduces multiple queries to one)
+  batch: {
+    // Get all dashboard stats in ONE query (replaces 6 separate queries)
+    getDashboardStats: async () => {
+      const fn = async () => {
+        const { data, error } = await supabase.rpc('get_dashboard_stats');
+        if (error) throw error;
+        return data;
+      };
+      return withCacheAndRetry(fn, 'dashboard_stats', 30000); // Cache 30 seconds
+    },
+    
+    // Get courier dashboard with stats in ONE query
+    getCourierDashboard: async (courierId: string) => {
+      const fn = async () => {
+        const { data, error } = await supabase.rpc('get_courier_dashboard', {
+          p_courier_id: courierId
+        });
+        if (error) throw error;
+        return data;
+      };
+      return withCacheAndRetry(fn, `courier_dashboard_${courierId}`, 20000); // Cache 20 seconds
+    },
+    
+    // Get seller dashboard with stats in ONE query
+    getSellerDashboard: async (sellerId: string) => {
+      const fn = async () => {
+        const { data, error } = await supabase.rpc('get_seller_dashboard', {
+          p_seller_id: sellerId
+        });
+        if (error) throw error;
+        return data;
+      };
+      return withCacheAndRetry(fn, `seller_dashboard_${sellerId}`, 20000); // Cache 20 seconds
+    },
+    
+    // Bulk update multiple shipments at once (reduces N queries to 1)
+    bulkUpdateShipments: async (shipmentIds: string[], status: string, actorId: string, actorRole: string, note?: string) => {
+      const fn = async () => {
+        const { data, error } = await supabase.rpc('bulk_update_shipments', {
+          p_shipment_ids: shipmentIds,
+          p_status: status,
+          p_actor: actorId,
+          p_actor_role: actorRole,
+          p_note: note || null
+        });
+        if (error) throw error;
+        return data;
+      };
+      const result = await withRetry(fn);
+      // Invalidate caches
+      invalidateCache([cacheKeys.shipments(), cacheKeys.shipments('courier'), cacheKeys.shipments('seller')]);
+      return result;
     }
   }
 };

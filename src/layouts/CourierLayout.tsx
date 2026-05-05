@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { ConnectionMonitor } from '@/components/ConnectionMonitor';
 import { Home, Package, Wallet, User, Bell, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -126,6 +127,9 @@ const CourierLayout: React.FC = () => {
           })}
         </div>
       </motion.nav>
+
+      {/* Connection Health Monitor */}
+      <ConnectionMonitor />
     </div>
   );
 };

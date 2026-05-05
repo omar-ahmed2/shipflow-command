@@ -102,9 +102,9 @@ const CourierCODPage: React.FC = () => {
                       onClick={() => !s.courierCollected && confirmCollection(s.id)}
                     >
                       {s.courierCollected ? (
-                        <span className="flex items-center gap-1">
-                          <CheckCircle className="w-3 h-3" />
-                          {t.collected}
+                        <span className="flex items-center gap-1.5">
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          تم التحصيل
                         </span>
                       ) : t.confirmCollection}
                     </Button>

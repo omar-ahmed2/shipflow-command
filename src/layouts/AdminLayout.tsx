@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { ConnectionMonitor } from '@/components/ConnectionMonitor';
 import {
   LayoutDashboard, Package, PlusCircle, Truck, Users, Wallet, BarChart3, Settings,
   LogOut, Menu, Bell, ChevronLeft, Store, Receipt
@@ -233,6 +234,9 @@ const AdminLayout: React.FC = () => {
         <main className="flex-1 p-6 overflow-x-hidden">
           <Outlet />
         </main>
+
+        {/* Connection Health Monitor */}
+        <ConnectionMonitor />
       </div>
     </div>
   );

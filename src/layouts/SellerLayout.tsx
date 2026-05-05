@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { ConnectionMonitor } from '@/components/ConnectionMonitor';
 import {
   LayoutDashboard, Package, PlusCircle, Wallet,
   LogOut, Menu, Bell, ChevronLeft
@@ -225,6 +226,9 @@ const SellerLayout: React.FC = () => {
         <main className="flex-1 p-6">
           <Outlet />
         </main>
+
+        {/* Connection Health Monitor */}
+        <ConnectionMonitor />
       </div>
     </div>
   );
