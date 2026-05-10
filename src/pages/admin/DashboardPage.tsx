@@ -40,17 +40,19 @@ const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
 
   // Queries
-  const { data: shipments = [], isLoading: shipLoading } = useQuery({ queryKey: ['shipments'], queryFn: api.shipments.getAll });
-  const { data: couriers = [], isLoading: courierLoading } = useQuery({ queryKey: ['couriers'], queryFn: api.couriers.getAll });
-  const { data: settlements = [], isLoading: settlementLoading } = useQuery({ queryKey: ['settlements'], queryFn: api.settlements.getAll });
+  const { data: shipments = [], isLoading: shipLoading } = useQuery<any[]>({ queryKey: ['shipments'], queryFn: () => api.shipments.getAll() });
+  const { data: couriers = [], isLoading: courierLoading } = useQuery<any[]>({ queryKey: ['couriers'], queryFn: () => api.couriers.getAll() });
+  const { data: settlements = [], isLoading: settlementLoading } = useQuery<any[]>({ queryKey: ['settlements'], queryFn: api.settlements.getAll });
 
   const isLoading = shipLoading || courierLoading || settlementLoading;
 
   // Memoized Calculations
   const stats = useMemo(() => {
     const todayShipments = shipments.filter(s => isToday(s.createdAt));
-    const onWay = shipments.filter(s => s.status === 'out_for_delivery');
+    const onWay = shipments.filter(s => ['assigned', 'out_for_delivery'].includes(s.status));
     const deliveredAll = shipments.filter(s => s.status === 'delivered');
+    
+    // Debt with couriers (Money they collected but haven't handed over)
     const pendingCod = shipments.filter(s => s.paymentType === 'COD' && !s.codCollected && s.status === 'delivered');
     const codAmount = pendingCod.reduce((s, sh) => s + sh.price + (sh.shippingFee || 0), 0);
     
@@ -59,20 +61,32 @@ const DashboardPage: React.FC = () => {
     const sellerPayments = settlements.filter(s => s.sellerId).reduce((sum, s) => sum + s.amount, 0);
     const netSafeBalance = courierCollections - sellerPayments;
 
-    const shippingCompanyProfit = shipments.filter(s => s.status === 'delivered').reduce((s, sh) => s + (sh.shippingFee || 0), 0);
-    const sellersProfit = shipments.filter(s => s.status === 'delivered').reduce((s, sh) => s + sh.price, 0);
+    // Company Profit: ONLY Shipping fees from Delivered shipments
+    const shippingCompanyProfit = shipments.filter(s => s.status === 'delivered')
+      .reduce((s, sh) => s + (sh.shippingFee || 0), 0);
+    
+    // Return Fees Revenue: Fees from Returned shipments
+    const returnFees = shipments.filter(s => s.status === 'returned')
+      .reduce((s, sh) => s + (sh.shippingFee || 0), 0);
+    
+    // Align with Settlements logic: Delivered price - Returned shipping fees
+    const sellersProfit = shipments.filter(s => !s.sellerSettled).reduce((sum, sh) => {
+        if (sh.status === 'delivered') return sum + sh.price;
+        if (sh.status === 'returned') return sum - (sh.shippingFee || 0);
+        return sum;
+    }, 0);
 
-    return { todayShipments, onWay, deliveredAll, codAmount, netSafeBalance, shippingCompanyProfit, sellersProfit };
+    return { todayShipments, onWay, deliveredAll, codAmount, netSafeBalance, shippingCompanyProfit, sellersProfit, returnFees };
   }, [shipments, settlements]);
 
   const kpis = [
     { icon: Package, label: t.totalShipments, value: shipments.length, color: '#4F8EF7', isAmount: false },
-    { icon: CircleDollarSign, label: 'أرباح شركة الشحن', value: stats.shippingCompanyProfit, color: '#10B981', isAmount: true },
-    { icon: Landmark, label: 'إجمالي أرباح المتاجر', value: stats.sellersProfit, color: '#06B6D4', isAmount: true },
+    { icon: CircleDollarSign, label: 'أرباح التسليمات (صافي)', value: stats.shippingCompanyProfit, color: '#10B981', isAmount: true, description: 'رسوم الشحن من الشحنات المسلمة فقط' },
+    { icon: Landmark, label: 'إجمالي أرباح المتاجر', value: stats.sellersProfit, color: '#06B6D4', isAmount: true, description: 'الصافي بعد خصم المرتجعات' },
+    { icon: Package, label: 'إيرادات المرتجعات', value: stats.returnFees, color: '#F87171', isAmount: true, description: 'رسوم شحن مستحقة عن المرتجعات' },
     { icon: Wallet, label: 'المديونية (عند المناديب)', value: stats.codAmount, color: '#A78BFA', isAmount: true },
-    { icon: Landmark, label: 'رصيد الخزنة المتاح', value: stats.netSafeBalance, color: '#059669', isAmount: true, description: 'صافي الربح + مستحقات المتاجر التي لم تدفع بعد' },
+    { icon: Landmark, label: 'رصيد الخزنة المتاح', value: stats.netSafeBalance, color: '#059669', isAmount: true, description: 'السيولة الفعلية المستلمة في الدرج' },
     { icon: CheckCircle, label: t.delivered, value: stats.deliveredAll.length, color: '#10B981', isAmount: false },
-    { icon: Calendar, label: t.todayShipments, value: stats.todayShipments.length, color: '#06B6D4', isAmount: false },
     { icon: Truck, label: t.onTheWay, value: stats.onWay.length, color: '#F59E0B', isAmount: false, pulse: true },
   ];
 

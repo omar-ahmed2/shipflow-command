@@ -14,9 +14,9 @@ const UsersPage: React.FC = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   // Query
-  const { data: users = [], isLoading } = useQuery({
+  const { data: users = [], isLoading } = useQuery<any[]>({
     queryKey: ['users'],
-    queryFn: api.users.getAll
+    queryFn: () => api.users.getAll()
   });
 
   const toggleStatus = async (userId: string, currentStatus: string) => {

@@ -34,19 +34,19 @@ const ShipmentsPage: React.FC = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   // Queries
-  const { data: shipments = [], isLoading: shipLoading } = useQuery({
+  const { data: shipments = [], isLoading: shipLoading } = useQuery<any[]>({
     queryKey: ['shipments'],
-    queryFn: api.shipments.getAll
+    queryFn: () => api.shipments.getAll()
   });
 
-  const { data: couriers = [], isLoading: courierLoading } = useQuery({
+  const { data: couriers = [], isLoading: courierLoading } = useQuery<any[]>({
     queryKey: ['couriers'],
-    queryFn: api.couriers.getAll
+    queryFn: () => api.couriers.getAll()
   });
 
-  const { data: sellers = [], isLoading: sellerLoading } = useQuery({
+  const { data: sellers = [], isLoading: sellerLoading } = useQuery<any[]>({
     queryKey: ['sellers'],
-    queryFn: api.sellers.getAll
+    queryFn: () => api.sellers.getAll()
   });
 
   const isLoading = shipLoading || courierLoading || sellerLoading;

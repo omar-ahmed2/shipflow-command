@@ -61,14 +61,14 @@ const ChartTooltip = ({ active, payload, label }: any) => {
 const ReportsPage: React.FC = () => {
   const { t } = useTheme();
 
-  const { data: shipments = [], isLoading: shipmentsLoading } = useQuery({
+  const { data: shipments = [], isLoading: shipmentsLoading } = useQuery<any[]>({
     queryKey: ['shipments'],
-    queryFn: api.shipments.getAll
+    queryFn: () => api.shipments.getAll()
   });
 
-  const { data: couriers = [], isLoading: couriersLoading } = useQuery({
+  const { data: couriers = [], isLoading: couriersLoading } = useQuery<any[]>({
     queryKey: ['couriers'],
-    queryFn: api.couriers.getAll
+    queryFn: () => api.couriers.getAll()
   });
 
   // Calculate Governorates Data
@@ -113,11 +113,22 @@ const ReportsPage: React.FC = () => {
     }).sort((a, b) => b.delivered - a.delivered).slice(0, 5);
   }, [couriers, shipments]);
 
-  const financialStats = useMemo(() => ({
-    companyProfit: shipments.filter(s => s.status === 'delivered').reduce((sum, s) => sum + (s.shippingFee || 0), 0),
-    sellersProfit: shipments.filter(s => s.status === 'delivered').reduce((sum, s) => sum + s.price, 0),
-    totalVolume: shipments.filter(s => s.status === 'delivered').reduce((sum, s) => sum + s.price + (s.shippingFee || 0), 0),
-  }), [shipments]);
+  const financialStats = useMemo(() => {
+    const companyProfit = shipments.filter(s => s.status === 'delivered').reduce((sum, s) => sum + (s.shippingFee || 0), 0);
+    
+    // Align with Settlements logic: Delivered price - Returned shipping fees
+    const sellersProfit = shipments.reduce((sum, sh) => {
+        if (sh.status === 'delivered') return sum + sh.price;
+        if (sh.status === 'returned') return sum - (sh.shippingFee || 0);
+        return sum;
+    }, 0);
+
+    return {
+        companyProfit,
+        sellersProfit,
+        totalVolume: companyProfit + sellersProfit
+    };
+  }, [shipments]);
 
   const exportCSV = () => {
     const headers = ['Tracking,Customer,City,Governorate,Price,Status,Date'];

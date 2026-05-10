@@ -47,16 +47,15 @@ const SellerProfilePage: React.FC = () => {
         enabled: !!seller?.userId
     });
 
-    const { data: shipments = [], isLoading: shipmentsLoading } = useQuery({
+    const { data: shipments = [], isLoading: shipmentsLoading } = useQuery<any[]>({
         queryKey: ['shipments', 'seller', id],
         queryFn: () => api.shipments.getBySellerId(id!),
         enabled: !!id
     });
 
-    const { data: settlements = [], isLoading: settlementsLoading } = useQuery({
-        queryKey: ['settlements', 'seller', id], // Filter logic in backend or frontend? Currently API.ts has getByCourierId but not getBySellerId? 
-        // Wait, I should add getBySellerId for settlements too if I need it.
-        queryFn: () => api.settlements.getAll().then(all => all.filter(s => s.sellerId === id)),
+    const { data: settlements = [], isLoading: settlementsLoading } = useQuery<any[]>({
+        queryKey: ['settlements', 'seller', id],
+        queryFn: () => api.settlements.getAll().then(all => all.filter((s: any) => s.sellerId === id)),
         enabled: !!id
     });
 

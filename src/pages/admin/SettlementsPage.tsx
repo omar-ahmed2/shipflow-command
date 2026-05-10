@@ -34,13 +34,13 @@ const SettlementsPage: React.FC = () => {
     const [isSettling, setIsSettling] = useState<string | null>(null);
 
     // Queries
-    const { data: couriers = [], isLoading: couriersLoading } = useQuery({ queryKey: ['couriers'], queryFn: api.couriers.getAll });
-    const { data: sellers = [], isLoading: sellersLoading } = useQuery({ queryKey: ['sellers'], queryFn: api.sellers.getAll });
-    const { data: shipments = [], isLoading: shipmentsLoading } = useQuery({ queryKey: ['shipments'], queryFn: api.shipments.getAll });
+    const { data: couriers = [], isLoading: couriersLoading } = useQuery<any[]>({ queryKey: ['couriers'], queryFn: () => api.couriers.getAll() });
+    const { data: sellers = [], isLoading: sellersLoading } = useQuery<any[]>({ queryKey: ['sellers'], queryFn: () => api.sellers.getAll() });
+    const { data: shipments = [], isLoading: shipmentsLoading } = useQuery<any[]>({ queryKey: ['shipments'], queryFn: () => api.shipments.getAll() });
 
     // Courier Stats Calculation
     const courierData = useMemo(() => {
-        return couriers.map(c => {
+        const mapped = couriers.map(c => {
             const cs = shipments.filter(s => s.courierId === c.id);
             const pendingShipments = cs.filter(s => s.status === 'delivered' && s.paymentType === 'COD' && !s.codCollected);
             const pendingAmount = pendingShipments.reduce((sum, s) => sum + s.price + (s.shippingFee || 0), 0);
@@ -51,9 +51,36 @@ const SettlementsPage: React.FC = () => {
                 pendingAmount,
                 pendingShipments,
                 transitAmount,
-                totalCustody: pendingAmount + transitAmount
+                totalCustody: pendingAmount + transitAmount,
+                isUnassigned: false
             };
-        }).filter(c => !search || c.name.toLowerCase().includes(search.toLowerCase()))
+        });
+
+        // Add a virtual courier for unassigned shipments if they have funds
+        const unassignedShipments = shipments.filter(s => !s.courierId && s.paymentType === 'COD' && !s.codCollected);
+        const unassignedPending = unassignedShipments.filter(s => s.status === 'delivered');
+        const unassignedPendingAmount = unassignedPending.reduce((sum, s) => sum + s.price + (s.shippingFee || 0), 0);
+        const unassignedTransitAmount = unassignedShipments.filter(s => ['assigned', 'out_for_delivery'].includes(s.status)).reduce((sum, s) => sum + s.price + (s.shippingFee || 0), 0);
+
+        if (unassignedPendingAmount > 0 || unassignedTransitAmount > 0) {
+            mapped.push({
+                id: 'unassigned',
+                userId: 'unassigned',
+                name: 'شحنات غير مخصصة لمندوب',
+                phone: '—',
+                zone: 'غير محدد',
+                pendingAmount: unassignedPendingAmount,
+                pendingShipments: unassignedPending,
+                transitAmount: unassignedTransitAmount,
+                totalCustody: unassignedPendingAmount + unassignedTransitAmount,
+                isUnassigned: true,
+                vehicleType: 'motorcycle',
+                status: 'offline',
+                joinDate: now()
+            });
+        }
+
+        return mapped.filter(c => !search || c.name.toLowerCase().includes(search.toLowerCase()))
         .sort((a, b) => b.pendingAmount - a.pendingAmount);
     }, [couriers, shipments, search]);
 

@@ -18,14 +18,14 @@ const PaymentsPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
 
-  const { data: shipments = [], isLoading: shipmentsLoading } = useQuery({
+  const { data: shipments = [], isLoading: shipmentsLoading } = useQuery<any[]>({
     queryKey: ['shipments'],
-    queryFn: api.shipments.getAll
+    queryFn: () => api.shipments.getAll()
   });
 
-  const { data: couriers = [], isLoading: couriersLoading } = useQuery({
+  const { data: couriers = [], isLoading: couriersLoading } = useQuery<any[]>({
     queryKey: ['couriers'],
-    queryFn: api.couriers.getAll
+    queryFn: () => api.couriers.getAll()
   });
 
   const codShipments = useMemo(() => 

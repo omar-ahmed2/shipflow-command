@@ -21,7 +21,7 @@ const SettingsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState('general');
   const [isSaving, setIsSaving] = useState(false);
 
-  const { data: shipmentsCount = 0 } = useQuery({ 
+  const { data: shipmentsCount = 0 } = useQuery<number>({ 
     queryKey: ['shipments', 'count'], 
     queryFn: async () => {
         const { count } = await supabase.from('shipments').select('*', { count: 'exact', head: true });
@@ -29,7 +29,7 @@ const SettingsPage: React.FC = () => {
     }
   });
 
-  const { data: couriersCount = 0 } = useQuery({ 
+  const { data: couriersCount = 0 } = useQuery<number>({ 
     queryKey: ['couriers', 'count'], 
     queryFn: async () => {
         const { count } = await supabase.from('couriers').select('*', { count: 'exact', head: true });

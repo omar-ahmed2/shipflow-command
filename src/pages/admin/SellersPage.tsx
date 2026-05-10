@@ -25,8 +25,8 @@ const SellersPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
 
   // Queries
-  const { data: sellers = [], isLoading: sellerLoading } = useQuery({ queryKey: ['sellers'], queryFn: api.sellers.getAll });
-  const { data: shipments = [], isLoading: shipLoading } = useQuery({ queryKey: ['shipments'], queryFn: api.shipments.getAll });
+  const { data: sellers = [], isLoading: sellerLoading } = useQuery<any[]>({ queryKey: ['sellers'], queryFn: () => api.sellers.getAll() });
+  const { data: shipments = [], isLoading: shipLoading } = useQuery<any[]>({ queryKey: ['shipments'], queryFn: () => api.shipments.getAll() });
 
   const isLoading = sellerLoading || shipLoading;
 
@@ -67,9 +67,19 @@ const SellersPage: React.FC = () => {
   const getSellerStats = (sellerId: string) => {
     const cs = shipments.filter(s => s.sellerId === sellerId);
     const deliveredCount = cs.filter(s => s.status === 'delivered').length;
+    const returnedCount = cs.filter(s => s.status === 'returned').length;
     
-    const pendingSettlement = cs.filter(s => s.status === 'delivered' && !s.sellerSettled);
-    const pendingAmount = pendingSettlement.reduce((sum, s) => sum + s.price, 0);
+    // Calculate Net Pending Amount: (Delivered Price) - (Return Shipping Fees)
+    const pendingSettlementShipments = cs.filter(s => !s.sellerSettled);
+    const deliveredValue = pendingSettlementShipments
+      .filter(s => s.status === 'delivered')
+      .reduce((sum, s) => sum + s.price, 0);
+    
+    const returnFeesValue = pendingSettlementShipments
+      .filter(s => s.status === 'returned')
+      .reduce((sum, s) => sum + (s.shippingFee || 0), 0);
+
+    const pendingAmount = deliveredValue - returnFeesValue;
 
     const goodsInTransit = cs.filter(s => ['assigned', 'out_for_delivery', 'pending'].includes(s.status));
     const goodsInTransitValue = goodsInTransit.reduce((sum, s) => sum + s.price, 0);
@@ -77,6 +87,9 @@ const SellersPage: React.FC = () => {
     return { 
       total: cs.length, 
       deliveredCount, 
+      returnedCount,
+      deliveredValue,
+      returnFeesValue,
       pendingAmount, 
       goodsInTransitValue 
     };
@@ -136,11 +149,21 @@ const SellersPage: React.FC = () => {
                   </Button>
                 </div>
                 
-                {stats.pendingAmount > 0 && (
-                    <div className="bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 border border-emerald-200 dark:border-emerald-900 rounded-lg p-3 mb-3 flex flex-col gap-1 text-sm font-semibold">
-                      <div className="flex justify-between items-center text-primary">
-                        <span className="text-xs">المستحقات للتاجر</span>
-                        <span className="font-bold">{formatCurrency(stats.pendingAmount)} ج</span>
+                {stats.pendingAmount !== 0 && (
+                    <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 rounded-lg p-3 mb-3 space-y-1">
+                      <div className="flex justify-between items-center text-xs text-muted-foreground">
+                        <span>إجمالي المبيعات:</span>
+                        <span className="font-mono-nums">{formatCurrency(stats.deliveredValue)} ج</span>
+                      </div>
+                      {stats.returnFeesValue > 0 && (
+                        <div className="flex justify-between items-center text-xs text-rose-500">
+                          <span>خصم مرتجعات:</span>
+                          <span className="font-mono-nums">-{formatCurrency(stats.returnFeesValue)} ج</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center text-sm font-bold text-emerald-600 pt-1 border-t border-emerald-200/50">
+                        <span>المستحق الصافي:</span>
+                        <span className="font-mono-nums">{formatCurrency(stats.pendingAmount)} ج</span>
                       </div>
                     </div>
                 )}

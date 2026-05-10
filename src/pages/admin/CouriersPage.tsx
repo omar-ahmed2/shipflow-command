@@ -26,8 +26,8 @@ const CouriersPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
 
   // Queries
-  const { data: couriers = [], isLoading: courierLoading } = useQuery({ queryKey: ['couriers'], queryFn: api.couriers.getAll });
-  const { data: shipments = [], isLoading: shipLoading } = useQuery({ queryKey: ['shipments'], queryFn: api.shipments.getAll });
+  const { data: couriers = [], isLoading: courierLoading } = useQuery<any[]>({ queryKey: ['couriers'], queryFn: () => api.couriers.getAll() });
+  const { data: shipments = [], isLoading: shipLoading } = useQuery<any[]>({ queryKey: ['shipments'], queryFn: () => api.shipments.getAll() });
 
   const isLoading = courierLoading || shipLoading;
 

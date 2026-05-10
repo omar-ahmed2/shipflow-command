@@ -31,14 +31,14 @@ const CreateShipmentPage: React.FC = () => {
   });
 
   // Queries for selectors
-  const { data: couriers = [] } = useQuery({
+  const { data: couriers = [] } = useQuery<any[]>({
     queryKey: ['couriers'],
-    queryFn: api.couriers.getAll
+    queryFn: () => api.couriers.getAll()
   });
 
-  const { data: sellers = [] } = useQuery({
+  const { data: sellers = [] } = useQuery<any[]>({
     queryKey: ['sellers'],
-    queryFn: api.sellers.getAll
+    queryFn: () => api.sellers.getAll()
   });
 
   const activeCouriers = couriers.filter(c => c.status === 'active');

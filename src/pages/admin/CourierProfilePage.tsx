@@ -47,13 +47,13 @@ const CourierProfilePage: React.FC = () => {
         enabled: !!courier?.userId
     });
 
-    const { data: shipments = [], isLoading: shipmentsLoading } = useQuery({
+    const { data: shipments = [], isLoading: shipmentsLoading } = useQuery<any[]>({
         queryKey: ['shipments', 'courier', id],
         queryFn: () => api.shipments.getByCourierId(id!),
         enabled: !!id
     });
 
-    const { data: settlements = [], isLoading: settlementsLoading } = useQuery({
+    const { data: settlements = [], isLoading: settlementsLoading } = useQuery<any[]>({
         queryKey: ['settlements', 'courier', id],
         queryFn: () => api.settlements.getByCourierId(id!),
         enabled: !!id

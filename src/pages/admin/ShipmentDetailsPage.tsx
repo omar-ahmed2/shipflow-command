@@ -46,14 +46,14 @@ const ShipmentDetailsPage: React.FC = () => {
     enabled: !!id
   });
 
-  const { data: couriers = [] } = useQuery({
+  const { data: couriers = [] } = useQuery<any[]>({
     queryKey: ['couriers'],
-    queryFn: api.couriers.getAll
+    queryFn: () => api.couriers.getAll()
   });
 
-  const { data: sellers = [] } = useQuery({
+  const { data: sellers = [] } = useQuery<any[]>({
     queryKey: ['sellers'],
-    queryFn: api.sellers.getAll
+    queryFn: () => api.sellers.getAll()
   });
 
   if (shipmentLoading) return (
