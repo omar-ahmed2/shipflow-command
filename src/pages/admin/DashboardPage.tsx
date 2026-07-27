@@ -57,8 +57,23 @@ const DashboardPage: React.FC = () => {
     const codAmount = pendingCod.reduce((s, sh) => s + sh.price + (sh.shippingFee || 0), 0);
     
     // Financials
-    const courierCollections = settlements.filter(s => s.courierId).reduce((sum, s) => sum + s.amount, 0);
-    const sellerPayments = settlements.filter(s => s.sellerId).reduce((sum, s) => sum + s.amount, 0);
+    const courierCollections = shipments
+        .filter(s => s.status === 'delivered' && s.paymentType === 'COD' && s.codCollected)
+        .reduce((sum, s) => sum + s.price + (s.shippingFee || 0), 0);
+
+    const sellerPayments = shipments
+        .filter(s => s.sellerSettled)
+        .reduce((sum, ship) => {
+            let amount = 0;
+            if (ship.status === 'delivered') {
+                if (ship.paymentType === 'COD') amount = ship.price;
+                else amount = -(ship.shippingFee || 0);
+            } else if (ship.status === 'returned') {
+                amount = -(ship.shippingFee || 0);
+            }
+            return sum + amount;
+        }, 0);
+        
     const netSafeBalance = courierCollections - sellerPayments;
 
     // Company Profit: ONLY Shipping fees from Delivered shipments
@@ -79,16 +94,22 @@ const DashboardPage: React.FC = () => {
     return { todayShipments, onWay, deliveredAll, codAmount, netSafeBalance, shippingCompanyProfit, sellersProfit, returnFees };
   }, [shipments, settlements]);
 
-  const kpis = [
-    { icon: Package, label: t.totalShipments, value: shipments.length, color: '#4F8EF7', isAmount: false },
-    { icon: CircleDollarSign, label: 'أرباح التسليمات (صافي)', value: stats.shippingCompanyProfit, color: '#10B981', isAmount: true, description: 'رسوم الشحن من الشحنات المسلمة فقط' },
-    { icon: Landmark, label: 'إجمالي أرباح المتاجر', value: stats.sellersProfit, color: '#06B6D4', isAmount: true, description: 'الصافي بعد خصم المرتجعات' },
-    { icon: Package, label: 'إيرادات المرتجعات', value: stats.returnFees, color: '#F87171', isAmount: true, description: 'رسوم شحن مستحقة عن المرتجعات' },
-    { icon: Wallet, label: 'المديونية (عند المناديب)', value: stats.codAmount, color: '#A78BFA', isAmount: true },
-    { icon: Landmark, label: 'رصيد الخزنة المتاح', value: stats.netSafeBalance, color: '#059669', isAmount: true, description: 'السيولة الفعلية المستلمة في الدرج' },
-    { icon: CheckCircle, label: t.delivered, value: stats.deliveredAll.length, color: '#10B981', isAmount: false },
-    { icon: Truck, label: t.onTheWay, value: stats.onWay.length, color: '#F59E0B', isAmount: false, pulse: true },
-  ];
+  const kpis = {
+    financial: [
+      { icon: Landmark, label: 'رصيد الخزنة المتاح', value: stats.netSafeBalance, color: '#059669', isAmount: true, description: 'السيولة الفعلية المستلمة (أرباح الشركة)' },
+      { icon: CircleDollarSign, label: 'أرباح التسليمات (صافي)', value: stats.shippingCompanyProfit, color: '#10B981', isAmount: true, description: 'رسوم الشحن من الشحنات المسلمة فقط' },
+      { icon: Package, label: 'إيرادات المرتجعات', value: stats.returnFees, color: '#F87171', isAmount: true, description: 'رسوم شحن مستحقة عن المرتجعات' },
+    ],
+    liabilities: [
+      { icon: Wallet, label: 'المديونية (عند المناديب)', value: stats.codAmount, color: '#A78BFA', isAmount: true, description: 'أموال يجب تحصيلها من المناديب' },
+      { icon: Landmark, label: 'مستحقات المتاجر (غير مسددة)', value: stats.sellersProfit, color: '#06B6D4', isAmount: true, description: 'أموال يجب تسديدها للتجار' },
+    ],
+    shipments: [
+      { icon: Package, label: t.totalShipments, value: shipments.length, color: '#4F8EF7', isAmount: false },
+      { icon: CheckCircle, label: t.delivered, value: stats.deliveredAll.length, color: '#10B981', isAmount: false },
+      { icon: Truck, label: t.onTheWay, value: stats.onWay.length, color: '#F59E0B', isAmount: false, pulse: true },
+    ]
+  };
 
   const statusData = [
     { name: t.pending, value: shipments.filter(s => s.status === 'pending').length },
@@ -125,31 +146,54 @@ const DashboardPage: React.FC = () => {
     );
   }
 
+  const renderKpiCard = (kpi: any, i: number) => (
+    <motion.div key={kpi.label} custom={i} variants={cardVariants} initial="initial" animate="animate"
+      className="admin-card p-4 relative overflow-hidden flex flex-col h-full">
+      <div className="absolute top-0 start-0 w-20 h-20 rounded-full opacity-5"
+        style={{ background: kpi.color, filter: 'blur(20px)' }} />
+      <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
+        style={{ background: `${kpi.color}15` }}>
+        <kpi.icon className="w-5 h-5" style={{ color: kpi.color }} />
+      </div>
+      <p className="text-2xl font-bold font-mono-nums text-start">
+        {kpi.isAmount ? (
+          <><CountUp end={kpi.value as number} duration={1.5} separator="," /> <span className="text-sm">{t.egp}</span></>
+        ) : (
+          <CountUp end={kpi.value as number} duration={1} />
+        )}
+      </p>
+      <p className="text-xs text-muted-foreground mt-1 text-start">{kpi.label}</p>
+      {kpi.description && <p className="text-[10px] text-muted-foreground/70 mt-auto pt-2">{kpi.description}</p>}
+      <div className="absolute bottom-0 start-0 end-0 h-px"
+        style={{ background: `linear-gradient(90deg, ${kpi.color}50, transparent)` }} />
+    </motion.div>
+  );
+
   return (
     <motion.div variants={pageVariants} initial="initial" animate="animate" className="space-y-6">
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3 md:gap-4">
-        {kpis.map((kpi, i) => (
-          <motion.div key={i} custom={i} variants={cardVariants} initial="initial" animate="animate"
-            className="admin-card p-4 relative overflow-hidden">
-            <div className="absolute top-0 start-0 w-20 h-20 rounded-full opacity-5"
-              style={{ background: kpi.color, filter: 'blur(20px)' }} />
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
-              style={{ background: `${kpi.color}15` }}>
-              <kpi.icon className="w-5 h-5" style={{ color: kpi.color }} />
+      {/* KPI Cards Grouped */}
+      <div className="space-y-6">
+        <div>
+          <h3 className="text-sm font-semibold mb-3 flex items-center gap-2 text-muted-foreground"><Landmark className="w-4 h-4" /> الموقف المالي والخزنة</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
+            {kpis.financial.map((kpi, i) => renderKpiCard(kpi, i))}
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div>
+            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2 text-muted-foreground"><Wallet className="w-4 h-4" /> المديونيات والالتزامات</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 h-[calc(100%-2rem)]">
+              {kpis.liabilities.map((kpi, i) => renderKpiCard(kpi, i))}
             </div>
-            <p className="text-2xl font-bold font-mono-nums text-start">
-              {kpi.isAmount ? (
-                <><CountUp end={kpi.value as number} duration={1.5} separator="," /> <span className="text-sm">{t.egp}</span></>
-              ) : (
-                <CountUp end={kpi.value as number} duration={1} />
-              )}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1 text-start">{kpi.label}</p>
-            <div className="absolute bottom-0 start-0 end-0 h-px"
-              style={{ background: `linear-gradient(90deg, ${kpi.color}50, transparent)` }} />
-          </motion.div>
-        ))}
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2 text-muted-foreground"><Package className="w-4 h-4" /> إحصائيات الشحنات</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4 h-[calc(100%-2rem)]">
+              {kpis.shipments.map((kpi, i) => renderKpiCard(kpi, i))}
+            </div>
+          </div>
+        </div>
       </div>
 
       {shipments.length === 0 && (

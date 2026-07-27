@@ -29,7 +29,7 @@ const PaymentsPage: React.FC = () => {
   });
 
   const codShipments = useMemo(() => 
-    shipments.filter(s => s.paymentType === 'COD' && s.status !== 'cancelled'),
+    shipments.filter(s => s.paymentType === 'COD' && s.status === 'delivered'),
     [shipments]
   );
 
